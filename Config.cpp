@@ -74,6 +74,7 @@ public:
         return strm.str();
     }
     const std::string& name() const { return name_; }
+    const PT::ptree& getRoot() const { return root_; }
 private:
     void normalizeXmlTree(PT::ptree& rawTree, const PT::path& currentPath = PT::path())
     {
@@ -167,9 +168,7 @@ catch(const PT::ptree_error& ex)
 ConfigSource::ConfigSource(const boost::shared_ptr<Impl>& impl): impl_(impl) {}
 
 
-ConfigSource::~ConfigSource()
-{
-}
+ConfigSource::~ConfigSource() {}
 
 ConfigSource ConfigSource::createFromFile(const std::string& filename, Format format) try
 {
@@ -198,6 +197,56 @@ catch(const PT::ptree_error& ex)
                 "Couldn't stringify config '%1%'. Reason: %2%") %
                 impl_->name() %
                 ex.what()));
+}
+
+class ProcessConfig::Impl
+{
+public:
+    explicit Impl(const std::string& name): name_(name) {}
+    void merge(const ConfigSource::Impl& source)
+    {
+        const PT::ptree& root = source.getRoot();
+        if(root.empty())
+            throw ConfigError(str(
+                boost::format("Source '%1%' of config '%2%' is empty") %
+                    source.name() %
+                    (name().empty()? "unknown": name())));
+        if(name().empty())
+            name_ = root.back().first;
+        else if(root.back().first != name())
+            throw ConfigError(str(
+                boost::format("Can't merge source '%1%' into config '%2%' because it has different config name '%3%'") %
+                    source.name() %
+                    name() %
+                    root.back().first));
+        config_ = root.back().second;
+    }
+    std::string get(const std::string& attrName) const
+    {
+        return config_.get<std::string>(attrName);
+    }
+    const std::string& name() const { return name_; }
+private:
+    std::string name_;
+    PT::ptree config_;
+};
+
+ProcessConfig::ProcessConfig(const ConfigSource& source, const std::string& name):
+    impl_(new Impl(name))
+{
+    impl_->merge(*source.impl_);
+}
+
+ProcessConfig::~ProcessConfig() {}
+
+std::string ProcessConfig::name() const
+{
+    return impl_->name();
+}
+
+std::string ProcessConfig::get(const std::string& attrName) const
+{
+    return impl_->get(attrName);
 }
 
 } //namespace jet

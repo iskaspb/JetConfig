@@ -92,6 +92,28 @@ TEST(JetConfig, DuplicateAttrConfigSource)
     }
 }
 
+TEST(JetConfig, AttrProcessConfig)
+{
+    const jet::ConfigSource source(
+        "<configName strAttr='value' intAttr='12'>\n"
+        "  <doubleAttr>13.2</doubleAttr>\n"
+        "  <subKey attr='value'/>\n"
+        "</configName>\n",
+        "testSource");
+    const jet::ProcessConfig config(source);
+    EXPECT_EQ("configName", config.name());
+    EXPECT_EQ("value", config.get("strAttr"));
+    EXPECT_EQ("value", config.get<std::string>("strAttr"));
+    EXPECT_EQ("12", config.get("intAttr"));
+    EXPECT_EQ(12, config.get<int>("intAttr"));
+    EXPECT_EQ("13.2", config.get<std::string>("doubleAttr"));
+    EXPECT_EQ(13.2, config.get<double>("doubleAttr"));
+    EXPECT_EQ("value", config.get("subKey.attr"));
+}
+//...ProcessConfig: negative test for empty config
+//...ProcessConfig: negative test for inconsistent config name taken from configuration source and from constructor parameter
+//...ProcessConfig: negative test for inconsistent config name in two config sources during merge
+//...ProcessConfig: negative test case for empty configuration
 
 //...ProcessConfig/SystemConfig: negative test for data inside root element (root it's just a holder for config - having data without attribute name is useless)
 //...SystemConfig: negative test for data inside second level element (it doesn't make sense because second level element is a process name and it should have attribute name)

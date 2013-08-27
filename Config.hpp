@@ -11,6 +11,9 @@
 
 #include <iosfwd>
 #include <boost/shared_ptr.hpp>
+#include <boost/scoped_ptr.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/noncopyable.hpp>
 #include <exception>
 
 namespace jet
@@ -50,11 +53,25 @@ public:
     std::string toString(OutputType outputType = Pretty) const;
 private:
     boost::shared_ptr<Impl> impl_;
-    friend class Config;
+    friend class ProcessConfig;
 };
 
-class Config
+class ProcessConfig: boost::noncopyable
 {
+public:
+    explicit ProcessConfig(
+        const ConfigSource& source, const std::string& name = std::string());
+    ~ProcessConfig();
+    std::string name() const;
+    std::string get(const std::string& attrName) const;
+    template<typename T>
+    T get(const std::string& attrName) const
+    {
+        return boost::lexical_cast<T>(get(attrName));
+    }
+private:
+    class Impl;
+    boost::scoped_ptr<Impl> impl_;
 };
 
 }//namespace jet
