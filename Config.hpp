@@ -62,7 +62,7 @@ public:
     explicit ProcessConfig(
         const ConfigSource& source, const std::string& name = std::string());
     ~ProcessConfig();
-    std::string name() const;
+    const std::string& name() const;
     std::string get(const std::string& attrName) const;
     template<typename T>
     T get(const std::string& attrName) const

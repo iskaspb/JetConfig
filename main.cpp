@@ -11,6 +11,40 @@ TEST(JetConfig, SimpleConfigSource)
     EXPECT_EQ("<root><attr>value</attr></root>", source.toString(jet::ConfigSource::OneLine));
 }
 
+TEST(JetConfig, EmptyConfigSource)
+{
+    try
+    {
+        jet::ConfigSource source("  ");
+        FAIL() << "Negative test for empty input: exception is expected";
+    }
+    catch(const jet::ConfigError& ex)
+    {
+        EXPECT_EQ(
+            "Couldn't parse config 'unknown'. Reason:",
+            std::string(ex.what()).substr(
+                0,
+                sizeof("Couldn't parse config 'unknown'. Reason:") - 1));
+    }
+}
+
+TEST(JetConfig, InvalidConfigSource)
+{
+    try
+    {
+        jet::ConfigSource source("  invalid ");
+        FAIL() << "Negative test for invalid input: exception is expected";
+    }
+    catch(const jet::ConfigError& ex)
+    {
+        EXPECT_EQ(
+            "Couldn't parse config 'unknown'. Reason:",
+            std::string(ex.what()).substr(
+                0,
+                sizeof("Couldn't parse config 'unknown'. Reason:") - 1));
+    }
+}
+
 TEST(JetConfig, SimpleConfigSourcePrettyPrint)
 {
     jet::ConfigSource source("<root><attr>value  </attr></root>");
@@ -110,7 +144,6 @@ TEST(JetConfig, AttrProcessConfig)
     EXPECT_EQ(13.2, config.get<double>("doubleAttr"));
     EXPECT_EQ("value", config.get("subKey.attr"));
 }
-//...ProcessConfig: negative test for empty config
 //...ProcessConfig: negative test for inconsistent config name taken from configuration source and from constructor parameter
 //...ProcessConfig: negative test for inconsistent config name in two config sources during merge
 //...ProcessConfig: negative test case for empty configuration

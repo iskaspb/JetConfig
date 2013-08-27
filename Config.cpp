@@ -76,24 +76,33 @@ public:
     const std::string& name() const { return name_; }
     const PT::ptree& getRoot() const { return root_; }
 private:
-    void normalizeXmlTree(PT::ptree& rawTree, const PT::path& currentPath = PT::path())
+    void normalizeXmlTree(PT::ptree& rawTree)
+    {
+        if (rawTree.empty())
+            throw ConfigSource(str(
+                boost::format("Config source '%1%' is empty") % name()));
+        PT::ptree::value_type& child(rawTree.front());
+        
+        normalizeXmlTreeImpl(child.first, child.second);
+    }
+    void normalizeXmlTreeImpl(const PT::path& currentPath, PT::ptree& rawTree)
     {
         const PT::ptree::iterator end(rawTree.end());
         for(PT::ptree::iterator iter = rawTree.begin(); end != iter;)
         {
             if("<xmlattr>" == iter->first)
             {
-                copyUniqueChildren(iter->second, rawTree, currentPath);
+                copyUniqueChildren(currentPath, iter->second, rawTree);
                 iter = rawTree.erase(iter);
             }
             else
             {
-                normalizeXmlTree(iter->second, currentPath/PT::path(iter->first));
+                normalizeXmlTreeImpl(currentPath/PT::path(iter->first), iter->second);
                 ++iter;
             }
         }
     }
-    void copyUniqueChildren(const PT::ptree& from, PT::ptree& to, const PT::path& currentPath) const
+    void copyUniqueChildren(const PT::path& currentPath, const PT::ptree& from, PT::ptree& to) const
     {
         BOOST_REVERSE_FOREACH(const PT::ptree::value_type& node, from)
         {
@@ -110,7 +119,16 @@ private:
             to.push_front(node);
         }
     }
-    void validateTree(const PT::ptree& tree, const PT::path& currentPath = PT::path()) const
+    void validateTree(const PT::ptree& tree)
+    {
+        if (tree.empty())
+            throw ConfigSource(str(
+                boost::format("Config source '%1%' is empty") % name()));
+        const PT::ptree::value_type& child(tree.front());
+        
+        validateTreeImpl(child.first, child.second);
+    }
+    void validateTreeImpl(const PT::path& currentPath, const PT::ptree& tree) const
     {
         BOOST_FOREACH(const PT::ptree::value_type& node, tree)
         {
@@ -120,7 +138,7 @@ private:
                     boost::format("Duplicate definition of element '%1%' in config '%2%'") %
                         nodePath.dump() %
                         name()));
-            validateTree(node.second, nodePath);
+            validateTreeImpl(nodePath, node.second);
         }
     }
     PT::ptree root_;
@@ -180,7 +198,7 @@ catch(const PT::ptree_error& ex)
     throw ConfigError(
         boost::str(
             boost::format(
-                "Couldn't parse config '%1%\'. Reason: %2%") %
+                "Couldn't parse config '%1%'. Reason: %2%") %
                 filename %
                 ex.what()));
 }
@@ -239,7 +257,7 @@ ProcessConfig::ProcessConfig(const ConfigSource& source, const std::string& name
 
 ProcessConfig::~ProcessConfig() {}
 
-std::string ProcessConfig::name() const
+const std::string& ProcessConfig::name() const
 {
     return impl_->name();
 }
