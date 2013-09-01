@@ -61,6 +61,7 @@ class Config: boost::noncopyable
 public:
     explicit Config(
         const ConfigSource& source, const std::string& name = std::string());
+    explicit Config(const std::string& name = std::string());
     ~Config();
     const std::string& name() const;
     std::string get(const std::string& attrName) const;
@@ -69,6 +70,7 @@ public:
     {
         return boost::lexical_cast<T>(get(attrName));
     }
+    Config& operator<<(const ConfigSource& source);
 private:
     class Impl;
     boost::scoped_ptr<Impl> impl_;

@@ -130,6 +130,11 @@ private:
     }
     void validateTreeImpl(const PT::path& currentPath, const PT::ptree& tree) const
     {
+        if(!tree.empty() && !tree.data().empty())
+            throw ConfigError(str(
+                boost::format("Invalid element '%1%' in config '%2%' contains both value and child attributes") %
+                currentPath.dump() %
+                name()));
         BOOST_FOREACH(const PT::ptree::value_type& node, tree)
         {
             const PT::path nodePath(currentPath/PT::path(node.first));
@@ -237,7 +242,10 @@ public:
                     source.name() %
                     name() %
                     root.back().first));
-        config_ = root.back().second;
+        if(config_.empty())
+            config_ = root.back().second;
+        else
+            mergeImpl(config_, root.back().second);
     }
     std::string get(const std::string& attrName) const
     {
@@ -245,6 +253,27 @@ public:
     }
     const std::string& name() const { return name_; }
 private:
+    static void mergeImpl(PT::ptree& to, const PT::ptree& from)
+    {
+        BOOST_FOREACH(const PT::ptree::value_type& node, from)
+        {
+            const std::string& mergeName(node.first);
+            const PT::ptree& mergeTree(node.second);
+            const PT::ptree::assoc_iterator iter(to.find(mergeName));
+            if(iter == to.not_found())
+            {
+                to.push_back(node);
+            }
+            else if(mergeTree.empty())
+            {
+                iter->second = mergeTree;
+            }
+            else
+            {
+                mergeImpl(iter->second, mergeTree);
+            }
+        }
+    }
     std::string name_;
     PT::ptree config_;
 };
@@ -254,6 +283,10 @@ Config::Config(const ConfigSource& source, const std::string& name):
 {
     impl_->merge(*source.impl_);
 }
+
+Config::Config(const std::string& name):
+    impl_(new Impl(name))
+{}
 
 Config::~Config() {}
 
@@ -265,6 +298,12 @@ const std::string& Config::name() const
 std::string Config::get(const std::string& attrName) const
 {
     return impl_->get(attrName);
+}
+
+Config& Config::operator<<(const ConfigSource& source)
+{
+    impl_->merge(*source.impl_);
+    return *this;
 }
 
 } //namespace jet
