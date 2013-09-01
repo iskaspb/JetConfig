@@ -1,5 +1,13 @@
+//
+//  main.cpp
+//  JetConfig
+//
+//  Created by Alexey Tkachenko on 26/8/13.
+//  Copyright (c) 2013 Alexey Tkachenko. All rights reserved.
+//
 #include "gtest.hpp"
 #include "Config.hpp"
+#include "ConfigError.hpp"
 #include <iostream>
 
 using std::cout;

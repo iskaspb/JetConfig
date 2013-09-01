@@ -1,3 +1,10 @@
+//
+//  gtest.hpp
+//  JetConfig
+//
+//  Created by Alexey Tkachenko on 1/9/13.
+//  Copyright (c) 2013 Alexey Tkachenko. All rights reserved.
+//
 #ifndef JET_CONFIG_GTEST_HEADER_GUARD
 #define JET_CONFIG_GTEST_HEADER_GUARD
 
