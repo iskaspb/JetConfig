@@ -5,6 +5,21 @@
 using std::cout;
 using std::endl;
 
+#define EXPECT_EXCEPTION(EXPRESSION, EXCEPTION, MESSAGE) \
+{ \
+    const std::string message(MESSAGE); \
+    try \
+    { \
+        do { EXPRESSION; } while(0); \
+        FAIL() << "Negative test: exception " #EXCEPTION " is expected"; \
+    } \
+    catch(const EXCEPTION& ex) \
+    { \
+        const std::string exceptionMessage(std::string(ex.what()).substr(0, message.size())); \
+        EXPECT_EQ(message, exceptionMessage); \
+    } \
+}
+
 TEST(JetConfig, SimpleConfigSource)
 {
     jet::ConfigSource source("<root> <attr> value</attr></root>");
@@ -13,36 +28,14 @@ TEST(JetConfig, SimpleConfigSource)
 
 TEST(JetConfig, EmptyConfigSource)
 {
-    try
-    {
-        jet::ConfigSource source("  ");
-        FAIL() << "Negative test for empty input: exception is expected";
-    }
-    catch(const jet::ConfigError& ex)
-    {
-        EXPECT_EQ(
-            "Couldn't parse config 'unknown'. Reason:",
-            std::string(ex.what()).substr(
-                0,
-                sizeof("Couldn't parse config 'unknown'. Reason:") - 1));
-    }
+    EXPECT_EXCEPTION(jet::ConfigSource source("  "),
+        jet::ConfigError, "Couldn't parse config 'unknown'. Reason:");
 }
 
 TEST(JetConfig, InvalidConfigSource)
 {
-    try
-    {
-        jet::ConfigSource source("  invalid ");
-        FAIL() << "Negative test for invalid input: exception is expected";
-    }
-    catch(const jet::ConfigError& ex)
-    {
-        EXPECT_EQ(
-            "Couldn't parse config 'unknown'. Reason:",
-            std::string(ex.what()).substr(
-                0,
-                sizeof("Couldn't parse config 'unknown'. Reason:") - 1));
-    }
+    EXPECT_EXCEPTION(jet::ConfigSource source("  invalid "),
+        jet::ConfigError, "Couldn't parse config 'unknown'. Reason:");
 }
 
 TEST(JetConfig, SimpleConfigSourcePrettyPrint)
@@ -83,50 +76,23 @@ TEST(JetConfig, ComplexConfigSource)
 
 TEST(JetConfig, AmbiguousAttrConfigSource)
 {
-    try
-    {
-        jet::ConfigSource source("<root attr='value1'><attr>value2</attr></root>");
-        FAIL() << "Negative test for duplicate attribute: exception is expected";
-    }
-    catch(const jet::ConfigError& ex)
-    {
-        EXPECT_EQ(
-            "Ambiguous definition of attribute and element 'root.attr' in config 'unknown'",
-            std::string(ex.what()));
-    }
+    EXPECT_EXCEPTION(jet::ConfigSource source("<root attr='value1'><attr>value2</attr></root>"),
+        jet::ConfigError, "Ambiguous definition of attribute and element 'root.attr' in config 'unknown'");
 }
 
 TEST(JetConfig, DuplicateElementConfigSource)
 {
-    try
-    {
-        jet::ConfigSource source("<root><attr>value1</attr><attr>value2</attr></root>");
-        FAIL() << "Negative test for duplicate element: exception is expected";
-    }
-    catch(const jet::ConfigError& ex)
-    {
-        EXPECT_EQ(
-            "Duplicate definition of element 'root.attr' in config 'unknown'",
-            std::string(ex.what()));
-    }
+    EXPECT_EXCEPTION(jet::ConfigSource source("<root><attr>value1</attr><attr>value2</attr></root>"),
+        jet::ConfigError, "Duplicate definition of element 'root.attr' in config 'unknown'");
 }
 
 TEST(JetConfig, DuplicateAttrConfigSource)
 {//TODO: submit bugreport to boost comunity - two attributes with the same name is not well formed xml
-    try
-    {
-        jet::ConfigSource source("<root attr='value1' attr='value2'></root>");
-        FAIL() << "Negative test for duplicate attribute: exception is expected";
-    }
-    catch(const jet::ConfigError& ex)
-    {
-        EXPECT_EQ(
-            "Duplicate definition of attribute 'root.attr' in config 'unknown'",
-            std::string(ex.what()));
-    }
+    EXPECT_EXCEPTION(jet::ConfigSource source("<root attr='value1' attr='value2'></root>"),
+        jet::ConfigError, "Duplicate definition of attribute 'root.attr' in config 'unknown'");
 }
 
-TEST(JetConfig, AttrProcessConfig)
+TEST(JetConfig, AttrConfig)
 {
     const jet::ConfigSource source(
         "<configName strAttr='value' intAttr='12'>\n"
@@ -134,21 +100,21 @@ TEST(JetConfig, AttrProcessConfig)
         "  <subKey attr='value'/>\n"
         "</configName>\n",
         "testSource");
-    const jet::ProcessConfig config(source);
+    const jet::Config config(source);
     EXPECT_EQ("configName", config.name());
-    EXPECT_EQ("value", config.get("strAttr"));
-    EXPECT_EQ("value", config.get<std::string>("strAttr"));
-    EXPECT_EQ("12", config.get("intAttr"));
-    EXPECT_EQ(12, config.get<int>("intAttr"));
-    EXPECT_EQ("13.2", config.get<std::string>("doubleAttr"));
-    EXPECT_EQ(13.2, config.get<double>("doubleAttr"));
-    EXPECT_EQ("value", config.get("subKey.attr"));
+    EXPECT_EQ("value",      config.get("strAttr"));
+    EXPECT_EQ("value",      config.get<std::string>("strAttr"));
+    EXPECT_EQ("12",         config.get("intAttr"));
+    EXPECT_EQ(12,           config.get<int>("intAttr"));
+    EXPECT_EQ("13.2",       config.get<std::string>("doubleAttr"));
+    EXPECT_EQ(13.2,         config.get<double>("doubleAttr"));
+    EXPECT_EQ("value",      config.get("subKey.attr"));
 }
-//...ProcessConfig: negative test for inconsistent config name taken from configuration source and from constructor parameter
-//...ProcessConfig: negative test for inconsistent config name in two config sources during merge
-//...ProcessConfig: negative test case for empty configuration
+//...Config: negative test for inconsistent config name taken from configuration source and from constructor parameter
+//...Config: negative test for inconsistent config name in two config sources during merge
+//...Config: negative test case for empty configuration
 
-//...ProcessConfig/SystemConfig: negative test for data inside root element (root it's just a holder for config - having data without attribute name is useless)
+//...Config/SystemConfig: negative test for data inside root element (root it's just a holder for config - having data without attribute name is useless)
 //...SystemConfig: negative test for data inside second level element (it doesn't make sense because second level element is a process name and it should have attribute name)
-//...ProcessConfig: negative test for data inside <instance> element (instance config is specialization of process config so useless to have data without attribute)
-//...ProcessConfig/SystemConfig: negative test for data insdie <env> element (environment variables must be with names)
+//...Config: negative test for data inside <instance> element (instance config is specialization of process config so useless to have data without attribute)
+//...Config/SystemConfig: negative test for data insdie <env> element (environment variables must be with names)

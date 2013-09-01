@@ -217,7 +217,7 @@ catch(const PT::ptree_error& ex)
                 ex.what()));
 }
 
-class ProcessConfig::Impl
+class Config::Impl
 {
 public:
     explicit Impl(const std::string& name): name_(name) {}
@@ -249,20 +249,20 @@ private:
     PT::ptree config_;
 };
 
-ProcessConfig::ProcessConfig(const ConfigSource& source, const std::string& name):
+Config::Config(const ConfigSource& source, const std::string& name):
     impl_(new Impl(name))
 {
     impl_->merge(*source.impl_);
 }
 
-ProcessConfig::~ProcessConfig() {}
+Config::~Config() {}
 
-const std::string& ProcessConfig::name() const
+const std::string& Config::name() const
 {
     return impl_->name();
 }
 
-std::string ProcessConfig::get(const std::string& attrName) const
+std::string Config::get(const std::string& attrName) const
 {
     return impl_->get(attrName);
 }

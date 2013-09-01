@@ -53,15 +53,15 @@ public:
     std::string toString(OutputType outputType = Pretty) const;
 private:
     boost::shared_ptr<Impl> impl_;
-    friend class ProcessConfig;
+    friend class Config;
 };
 
-class ProcessConfig: boost::noncopyable
+class Config: boost::noncopyable
 {
 public:
-    explicit ProcessConfig(
+    explicit Config(
         const ConfigSource& source, const std::string& name = std::string());
-    ~ProcessConfig();
+    ~Config();
     const std::string& name() const;
     std::string get(const std::string& attrName) const;
     template<typename T>
