@@ -1,24 +1,9 @@
-#include <gtest/gtest.h>
+#include "gtest.hpp"
 #include "Config.hpp"
 #include <iostream>
 
 using std::cout;
 using std::endl;
-
-#define EXPECT_EXCEPTION(EXPRESSION, EXCEPTION, MESSAGE) \
-{ \
-    const std::string message(MESSAGE); \
-    try \
-    { \
-        do { EXPRESSION; } while(0); \
-        FAIL() << "Negative test: exception " #EXCEPTION " is expected"; \
-    } \
-    catch(const EXCEPTION& ex) \
-    { \
-        const std::string exceptionMessage(std::string(ex.what()).substr(0, message.size())); \
-        EXPECT_EQ(message, exceptionMessage); \
-    } \
-}
 
 TEST(JetConfig, SimpleConfigSource)
 {
