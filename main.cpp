@@ -227,3 +227,5 @@ TEST(Config, InstanceConfigInvalidData3)
         config << s3 << jet::lock,
         "Invalid data node 'data' in config 'appName.i1' taken from config source 's3.xml'");
 }
+
+//TODO: add test case to check that 'instance' is not treated as attribute name
