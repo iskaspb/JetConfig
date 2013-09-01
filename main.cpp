@@ -156,8 +156,13 @@ TEST(Config, SubtreeConfigSourceMerge)
     EXPECT_EQ("data",    config.get("attribs.subkey.attr"));
 }
 
-//...Config: negative test for inconsistent config name in two config sources during merge
-//...Config: negative test case for empty configuration
+TEST(Config, UnmatchedNamesConfigSourceMerge)
+{
+    const jet::ConfigSource s1("<appName attr1='10' attr2='something'></appName>", "s1.xml");
+    const jet::ConfigSource s2("<anotherAppName attr2='20' attr3='value3'></appName>", "s2.xml");
+    CONFIG_ERROR(jet::Config() << s1 << s2,
+        "Can't merge source 's2.xml' into config 'appName' because it has different config name 'anotherAppName'");
+}
 
 //...Config/SystemConfig: negative test for data inside root element (root it's just a holder for config - having data without attribute name is useless)
 //...SystemConfig: negative test for data inside second level element (it doesn't make sense because second level element is a process name and it should have attribute name)
