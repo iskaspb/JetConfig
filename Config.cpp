@@ -29,6 +29,8 @@ namespace PT = boost::property_tree;
 namespace jet
 {
 
+const ConfigLock lock = {};
+
 class Config::Impl
 {
 public:

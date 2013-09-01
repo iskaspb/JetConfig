@@ -45,7 +45,7 @@ private:
     boost::shared_ptr<Impl> impl_;
 };
 
-const ConfigLock lock = {};
+extern const ConfigLock lock;
 
 }//namespace jet
 

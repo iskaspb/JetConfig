@@ -229,3 +229,9 @@ TEST(Config, InstanceConfigInvalidData3)
 }
 
 //TODO: add test case to check that 'instance' is not treated as attribute name
+//TODO: add tests that merge instance, appConfig, shared in different combinations
+//TODO: add test for serialization of Config
+//TODO: add test for jet::lock
+//TODO: add command line config source
+//TODO: add environment config source
+//TODO: add singleton with dependency injection
