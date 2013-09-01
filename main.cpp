@@ -7,25 +7,25 @@ using std::endl;
 
 TEST(JetConfig, SimpleConfigSource)
 {
-    jet::ConfigSource source("<root> <attr> value</attr></root>");
+    const jet::ConfigSource source("<root> <attr> value</attr></root>");
     EXPECT_EQ("<root><attr>value</attr></root>", source.toString(jet::ConfigSource::OneLine));
 }
 
 TEST(JetConfig, EmptyConfigSource)
 {
-    CONFIG_ERROR(jet::ConfigSource source("  "),
+    CONFIG_ERROR(const jet::ConfigSource source("  "),
         "Couldn't parse config 'unknown'. Reason:");
 }
 
 TEST(JetConfig, InvalidConfigSource)
 {
-    CONFIG_ERROR(jet::ConfigSource source("  invalid "),
+    CONFIG_ERROR(const jet::ConfigSource source("  invalid "),
         "Couldn't parse config 'unknown'. Reason:");
 }
 
 TEST(JetConfig, SimpleConfigSourcePrettyPrint)
 {
-    jet::ConfigSource source("<root><attr>value  </attr></root>");
+    const jet::ConfigSource source("<root><attr>value  </attr></root>");
     EXPECT_EQ(
         "<root>\n"
         "  <attr>value</attr>\n"
@@ -35,7 +35,7 @@ TEST(JetConfig, SimpleConfigSourcePrettyPrint)
 
 TEST(JetConfig, AttrConfigSource)
 {
-    jet::ConfigSource source("<root attr='value'>   </root>");
+    const jet::ConfigSource source("<root attr='value'>   </root>");
     EXPECT_EQ(
         "<root>\n"
         "  <attr>value</attr>\n"
@@ -45,7 +45,7 @@ TEST(JetConfig, AttrConfigSource)
 
 TEST(JetConfig, ComplexConfigSource)
 {
-    jet::ConfigSource source("<root attr1='value1' attr2=\"value2\"><attr3 attr4='value4'><attr5>value5</attr5>value3</attr3></root>");
+    const jet::ConfigSource source("<root attr1='value1' attr2=\"value2\"><attr3 attr4='value4'><attr5>value5</attr5>value3</attr3></root>");
     EXPECT_EQ(
         "<root>\n"
         "  <attr1>value1</attr1>\n"
@@ -61,7 +61,7 @@ TEST(JetConfig, ComplexConfigSource)
 
 TEST(JetConfig, AmbiguousAttrConfigSource)
 {
-    CONFIG_ERROR(jet::ConfigSource source("<root attr='value1'><attr>value2</attr></root>"),
+    CONFIG_ERROR(const jet::ConfigSource source("<root attr='value1'><attr>value2</attr></root>"),
         "Ambiguous definition of attribute and element 'root.attr' in config 'unknown'");
 }
 
@@ -73,7 +73,7 @@ TEST(JetConfig, DuplicateElementConfigSource)
 
 TEST(JetConfig, DuplicateAttrConfigSource)
 {//TODO: submit bugreport to boost comunity - two attributes with the same name is not well formed xml
-    CONFIG_ERROR(jet::ConfigSource source("<root attr='value1' attr='value2'></root>"),
+    CONFIG_ERROR(const jet::ConfigSource source("<root attr='value1' attr='value2'></root>"),
         "Duplicate definition of attribute 'root.attr' in config 'unknown'");
 }
 
@@ -98,10 +98,11 @@ TEST(JetConfig, AttrConfig)
 
 TEST(JetConfig, InconsistentConfigName)
 {
-    jet::ConfigSource source("<wrongConfigName><attr>value</attr></wrongConfigName>", "xmlSource");
+    const jet::ConfigSource source("<wrongConfigName><attr>value</attr></wrongConfigName>", "xmlSource");
     CONFIG_ERROR(const jet::Config config(source, "ApplicationName"),
         "Can't merge source 'xmlSource' into config 'ApplicationName' because it has different config name 'wrongConfigName'");
 }
+
 //...Config: negative test for inconsistent config name in two config sources during merge
 //...Config: negative test case for empty configuration
 
