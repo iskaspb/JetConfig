@@ -20,11 +20,13 @@ namespace jet
 class Config: boost::noncopyable
 {
 public:
+    enum Type { Unknown, System, Application, Instance, Module };
     explicit Config(
         const ConfigSource& source, const std::string& name = std::string());
     explicit Config(const std::string& name = std::string());
     ~Config();
     const std::string& name() const;
+    Type type() const;
     std::string get(const std::string& attrName) const;
     template<typename T>
     T get(const std::string& attrName) const

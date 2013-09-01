@@ -164,7 +164,41 @@ TEST(Config, UnmatchedNamesConfigSourceMerge)
         "Can't merge source 's2.xml' into config 'appName' because it has different config name 'anotherAppName'");
 }
 
-//...Config/SystemConfig: negative test for data inside root element (root it's just a holder for config - having data without attribute name is useless)
-//...SystemConfig: negative test for data inside second level element (it doesn't make sense because second level element is a process name and it should have attribute name)
+TEST(Config, ApplicationConfigType)
+{
+    const jet::ConfigSource s1("<appName attr1='10' attr2='something'></appName>");
+    const jet::ConfigSource s2("<appName attr2='20' attr3='value3'></appName>");
+    jet::Config config;
+    EXPECT_EQ(jet::Config::Unknown, config.type());
+    EXPECT_EQ(std::string(), config.name());
+    config << s1 << s2;
+    EXPECT_EQ(jet::Config::Application, config.type());
+    EXPECT_EQ("appName", config.name());
+}
+
+TEST(Config, SystemConfigType)
+{
+    const jet::ConfigSource s1("<CONFIG><appName attr1='10' attr2='something'></appName></CONFIG>", "s1.xml");
+    const jet::ConfigSource s2("<Config><appName attr2='20' attr3='value3'></appName></Config>", "s2.xml");
+    jet::Config config;
+    EXPECT_EQ(jet::Config::Unknown, config.type());
+    config << s1 << s2;
+    EXPECT_EQ(jet::Config::System, config.type());
+    EXPECT_EQ("config", config.name());
+}
+
+TEST(Config, LowCaseSystemConfigName)
+{
+    const jet::ConfigSource s1("<conFIG/>", "s1.xml");
+    EXPECT_EQ(jet::Config(s1, "Config").name(), "config");
+}
+
+TEST(Config, SystemConfigInvalidData)
+{
+    const jet::ConfigSource s1("<config>data</config>", "s1.xml");
+    CONFIG_ERROR(const jet::Config config(s1), "Invalid data node 'data' in config 'config' taken from config source 's1.xml'");
+}
+
+//...SystemConfig: negative test for data inside second level element (it doesn't make sense because second level element is a process or module name and it should have attribute name)
 //...Config: negative test for data inside <instance> element (instance config is specialization of process config so useless to have data without attribute)
-//...Config/SystemConfig: negative test for data insdie <env> element (environment variables must be with names)
+//...Config/SystemConfig: negative test for data inside <env> element (environment variables must be with names)
