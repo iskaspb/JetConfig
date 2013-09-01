@@ -13,14 +13,14 @@ TEST(JetConfig, SimpleConfigSource)
 
 TEST(JetConfig, EmptyConfigSource)
 {
-    EXPECT_EXCEPTION(jet::ConfigSource source("  "),
-        jet::ConfigError, "Couldn't parse config 'unknown'. Reason:");
+    CONFIG_ERROR(jet::ConfigSource source("  "),
+        "Couldn't parse config 'unknown'. Reason:");
 }
 
 TEST(JetConfig, InvalidConfigSource)
 {
-    EXPECT_EXCEPTION(jet::ConfigSource source("  invalid "),
-        jet::ConfigError, "Couldn't parse config 'unknown'. Reason:");
+    CONFIG_ERROR(jet::ConfigSource source("  invalid "),
+        "Couldn't parse config 'unknown'. Reason:");
 }
 
 TEST(JetConfig, SimpleConfigSourcePrettyPrint)
@@ -61,20 +61,20 @@ TEST(JetConfig, ComplexConfigSource)
 
 TEST(JetConfig, AmbiguousAttrConfigSource)
 {
-    EXPECT_EXCEPTION(jet::ConfigSource source("<root attr='value1'><attr>value2</attr></root>"),
-        jet::ConfigError, "Ambiguous definition of attribute and element 'root.attr' in config 'unknown'");
+    CONFIG_ERROR(jet::ConfigSource source("<root attr='value1'><attr>value2</attr></root>"),
+        "Ambiguous definition of attribute and element 'root.attr' in config 'unknown'");
 }
 
 TEST(JetConfig, DuplicateElementConfigSource)
 {
-    EXPECT_EXCEPTION(jet::ConfigSource source("<root><attr>value1</attr><attr>value2</attr></root>"),
-        jet::ConfigError, "Duplicate definition of element 'root.attr' in config 'unknown'");
+    CONFIG_ERROR(jet::ConfigSource source("<root><attr>value1</attr><attr>value2</attr></root>"),
+        "Duplicate definition of element 'root.attr' in config 'unknown'");
 }
 
 TEST(JetConfig, DuplicateAttrConfigSource)
 {//TODO: submit bugreport to boost comunity - two attributes with the same name is not well formed xml
-    EXPECT_EXCEPTION(jet::ConfigSource source("<root attr='value1' attr='value2'></root>"),
-        jet::ConfigError, "Duplicate definition of attribute 'root.attr' in config 'unknown'");
+    CONFIG_ERROR(jet::ConfigSource source("<root attr='value1' attr='value2'></root>"),
+        "Duplicate definition of attribute 'root.attr' in config 'unknown'");
 }
 
 TEST(JetConfig, AttrConfig)
@@ -95,7 +95,13 @@ TEST(JetConfig, AttrConfig)
     EXPECT_EQ(13.2,         config.get<double>("doubleAttr"));
     EXPECT_EQ("value",      config.get("subKey.attr"));
 }
-//...Config: negative test for inconsistent config name taken from configuration source and from constructor parameter
+
+TEST(JetConfig, InconsistentConfigName)
+{
+    jet::ConfigSource source("<wrongConfigName><attr>value</attr></wrongConfigName>", "xmlSource");
+    CONFIG_ERROR(const jet::Config config(source, "ApplicationName"),
+        "Can't merge source 'xmlSource' into config 'ApplicationName' because it has different config name 'wrongConfigName'");
+}
 //...Config: negative test for inconsistent config name in two config sources during merge
 //...Config: negative test case for empty configuration
 
