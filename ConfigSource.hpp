@@ -3,7 +3,7 @@
 //  JetConfig
 //
 //  Created by Alexey Tkachenko on 1/9/13.
-//  Copyright (c) 2013 Alexey Tkachenko. All rights reserved.
+//  This code belongs to public domain. You can do with it whatever you want without any guarantee.
 //
 
 #ifndef JetConfig_ConfigSource_hpp
