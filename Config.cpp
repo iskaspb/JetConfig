@@ -63,7 +63,7 @@ public:
         
         if(boost::to_lower_copy(otherConfigName) == ROOT_NODE_NAME)
         {
-            validateNode(otherConfig, source.name());
+            validateNoData(otherConfig, source.name());
             {//...merge shared attributes (if found)
                 const boost::optional<const PT::ptree&> sharedNode(
                     otherConfig.get_child_optional(SHARED_NODE_NAME));
@@ -151,14 +151,31 @@ public:
 private:
     void mergeShared(const PT::ptree& from, const std::string& sourceName)
     {
-        validateNode(from, sourceName);
+        validateNoData(from, sourceName);
+        validateShared(from, sourceName);
         assert(config_.back().first == SHARED_NODE_NAME);
         PT::ptree& shared(config_.back().second);
         merge(shared, from);
     }
+    void validateShared(const PT::ptree& from, const std::string& sourceName)
+    {
+        BOOST_FOREACH(const PT::ptree::value_type& node, from)
+        {
+            const std::string& nodeName = node.first;
+            if(boost::to_lower_copy(nodeName) == "instance")
+                throw ConfigError(str(
+                    boost::format("Subsecion name 'instance' is prohibited in 'shared' section. Config source '%1%'") %
+                    sourceName));
+            if(node.second.empty())
+                throw ConfigError(str(
+                    boost::format("Attribute '%1%' in 'shared' section of config source '%2%' must be defined under subsection") %
+                    nodeName %
+                    sourceName));
+        }
+    }
     void mergeSelf(const PT::ptree& from, const std::string& sourceName)
     {
-        validateNode(from, sourceName);
+        validateNoData(from, sourceName);
         if(instanceName_.empty())
         {
             assert(config_.size() == 2);
@@ -203,7 +220,7 @@ private:
     }
     void mergeInstance(const PT::ptree& from, const std::string& sourceName)
     {
-        validateNode(from, sourceName);
+        validateNoData(from, sourceName);
         assert(!instanceName_.empty());
         assert(config_.size() == 3);
         assert(config_.front().first == instanceName());
@@ -231,7 +248,7 @@ private:
             }
         }
     }
-    void validateNode(const PT::ptree& tree, const std::string& sourceName)
+    void validateNoData(const PT::ptree& tree, const std::string& sourceName)
     {
         if(!tree.data().empty())
             throw ConfigError(str(

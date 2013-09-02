@@ -66,12 +66,6 @@ TEST(ConfigSource, ComplexConfigSource)
         source.toString());
 }
 
-TEST(ConfigSource, AmbiguousAttrConfigSource)
-{
-    CONFIG_ERROR(jet::ConfigSource("<root attr='value1'><attr>value2</attr></root>"),
-        "Ambiguous definition of attribute and element 'root.attr' in config 'unknown'");
-}
-
 TEST(ConfigSource, InconsistentAttributeDefinitionConfigSource)
 {
     CONFIG_ERROR(
@@ -83,12 +77,6 @@ TEST(ConfigSource, InconsistentAttributeDefinitionConfigSource)
         "Invalid element 'root' in config 'InconsistentAttributeDefinitionConfigSource' contains both value and child attributes");
 }
 
-TEST(ConfigSource, DuplicateElementConfigSource)
-{
-    CONFIG_ERROR(jet::ConfigSource("<root><attr>value1</attr><attr>value2</attr></root>"),
-        "Duplicate definition of element 'root.attr' in config 'unknown'");
-}
-
 TEST(ConfigSource, DuplicateAttrConfigSource)
 {//TODO: submit bugreport to boost comunity - two attributes with the same name is not well formed xml
     CONFIG_ERROR(jet::ConfigSource("<root attr='value1' attr='value2'></root>"),
@@ -98,20 +86,22 @@ TEST(ConfigSource, DuplicateAttrConfigSource)
 TEST(Config, SharedAttrConfigWithoutRootConfigElement)
 {
     const jet::ConfigSource shared(
-        "<shared strAttr='value' intAttr='12'>\n"
-        "  <doubleAttr>13.2</doubleAttr>\n"
-        "  <subKey attr='value'/>\n"
+        "<shared>\n"
+        "   <libName strAttr='value' intAttr='12'>\n"
+        "       <doubleAttr>13.2</doubleAttr>\n"
+        "       <subKey attr='value'/>\n"
+        "   </libName>\n"
         "</shared>\n",
         "shared.xml");
     const jet::Config config(shared, "appName");
     EXPECT_EQ("appName", config.name());
-    EXPECT_EQ("value",   config.get("strAttr"));
-    EXPECT_EQ("value",   config.get<std::string>("strAttr"));
-    EXPECT_EQ("12",      config.get("intAttr"));
-    EXPECT_EQ(12,        config.get<int>("intAttr"));
-    EXPECT_EQ("13.2",    config.get<std::string>("doubleAttr"));
-    EXPECT_EQ(13.2,      config.get<double>("doubleAttr"));
-    EXPECT_EQ("value",   config.get("subKey.attr"));
+    EXPECT_EQ("value",   config.get("libName.strAttr"));
+    EXPECT_EQ("value",   config.get<std::string>("libName.strAttr"));
+    EXPECT_EQ("12",      config.get("libName.intAttr"));
+    EXPECT_EQ(12,        config.get<int>("libName.intAttr"));
+    EXPECT_EQ("13.2",    config.get<std::string>("libName.doubleAttr"));
+    EXPECT_EQ(13.2,      config.get<double>("libName.doubleAttr"));
+    EXPECT_EQ("value",   config.get("libName.subKey.attr"));
 }
 
 TEST(Config, InconsistentConfigName)
@@ -171,6 +161,14 @@ TEST(Config, AnyCaseSystemConfigName)
     EXPECT_EQ(10, config.get<int>("attr"));
 }
 
+TEST(Config, InstanceConfigName)
+{
+    jet::Config config("appName.i1");
+    EXPECT_EQ("appName.i1", config.name());
+    EXPECT_EQ("appName", config.appName());
+    EXPECT_EQ("i1", config.instanceName());
+}
+
 TEST(Config, SystemConfigInvalidData)
 {
     const jet::ConfigSource s1("<config>data</config>", "s1.xml");
@@ -195,14 +193,6 @@ TEST(Config, SharedConfigInvalidData)
         "Invalid data node 'data' in config 'appName' taken from config source 's1.xml'");
 }
 
-TEST(Config, InstanceConfigName)
-{
-    jet::Config config("appName.i1");
-    EXPECT_EQ("appName.i1", config.name());
-    EXPECT_EQ("appName", config.appName());
-    EXPECT_EQ("i1", config.instanceName());
-}
-
 TEST(Config, InstanceConfigInvalidData1)
 {
     const jet::ConfigSource s1("<config><appName.i1>data</appName.i1></config>", "s1.xml");
@@ -211,6 +201,7 @@ TEST(Config, InstanceConfigInvalidData1)
         config << s1 << jet::lock,
         "Invalid data node 'data' in config 'appName.i1' taken from config source 's1.xml'");
 }
+
 TEST(Config, InstanceConfigInvalidData2)
 {
     const jet::ConfigSource s2("<config><appName><instance.i1>data</instance.i1></appName></config>", "s2.xml");
@@ -219,6 +210,7 @@ TEST(Config, InstanceConfigInvalidData2)
         config << s2 << jet::lock,
         "Invalid data node 'data' in config 'appName.i1' taken from config source 's2.xml'");
 }
+
 TEST(Config, InstanceConfigInvalidData3)
 {
     const jet::ConfigSource s3("<config><appName><instance><i1>data</i1></instance></appName></config>", "s3.xml");
@@ -228,10 +220,57 @@ TEST(Config, InstanceConfigInvalidData3)
         "Invalid data node 'data' in config 'appName.i1' taken from config source 's3.xml'");
 }
 
-//TODO: add test case to check that 'instance' is not treated as attribute name
-//TODO: add tests that merge instance, appConfig, shared in different combinations
+TEST(Config, LockConfig)
+{
+    const jet::ConfigSource s1(
+        "<appName>\n"
+        "   <instance.1 attr='value'/>\n"
+        "</appName>",
+        "s1.xml");
+    const jet::ConfigSource s2(
+        "<appName>\n"
+        "   <instance.1 attr2='10'/>\n"
+        "</appName>",
+        "s2.xml");
+    jet::Config config("appName.1");
+    config << s1 << jet::lock;
+    EXPECT_EQ("value", config.get("attr"));
+    CONFIG_ERROR(
+        config << s2,
+        "Config 'appName.1' is locked");
+}
+
+TEST(Config, ProhibitedSimpleSharedAttributes)
+{//...this is to prevent situation when shared attributes are trited as default values for simple attributes in application config
+    const jet::ConfigSource s1(
+        "<shared attr1='value1'>\n"
+        "   <attr2>value2</attr2>\n"
+        "</shared>",
+        "s1.xml");
+    CONFIG_ERROR(
+        jet::Config(s1, "appName"),
+        "Attribute 'attr1' in 'shared' section of config source 's1.xml' must be defined under subsection");
+}
+
+TEST(Config, ProhibitedInstanceSubsectionInSharedSection)
+{//...'instance' is keyword
+    const jet::ConfigSource s1(
+        "<shared>\n"
+        "   <instance attr='value'/>\n"
+        "</shared>",
+        "s1.xml");
+    CONFIG_ERROR(
+        jet::Config(s1, "appName"),
+        "Subsecion name 'instance' is prohibited in 'shared' section. Config source 's1.xml'");
+}
+
+//TODO: prohibit duplicate 'instance' in different combinations in one config source
+//TODO: prohibit duplicate 'shared' in one config source
+//TODO: prohibit duplicate application defintions in one config source
+//TODO: add optional getter and getter with default value
+//TODO: provide way to get sequence of parameters with the same name
+//TODO: add tests that merges sections of 'instance', <appConfig> and 'shared' in different combinations
 //TODO: add test for serialization of Config
-//TODO: add test for jet::lock
 //TODO: add command line config source
 //TODO: add environment config source
-//TODO: add singleton with dependency injection
+//TODO: keywords 'shared', 'instance', 'config' should be parsed as case-insensitive

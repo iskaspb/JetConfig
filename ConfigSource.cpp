@@ -104,11 +104,6 @@ void ConfigSource::Impl::copyUniqueChildren(const PT::path& currentPath, const P
                 boost::format("Duplicate definition of attribute '%1%' in config '%2%'") %
                     (currentPath/PT::path(node.first)).dump() %
                     name()));
-        if(to.count(node.first))
-            throw ConfigError(str(
-                boost::format("Ambiguous definition of attribute and element '%1%' in config '%2%'") %
-                    (currentPath/PT::path(node.first)).dump() %
-                    name()));
         to.push_front(node);
     }
 }
@@ -133,11 +128,6 @@ void ConfigSource::Impl::validateTreeImpl(const PT::path& currentPath, const PT:
     BOOST_FOREACH(const PT::ptree::value_type& node, tree)
     {
         const PT::path nodePath(currentPath/PT::path(node.first));
-        if(tree.count(node.first) > 1)
-            throw ConfigError(str(
-                boost::format("Duplicate definition of element '%1%' in config '%2%'") %
-                    nodePath.dump() %
-                    name()));
         validateTreeImpl(nodePath, node.second);
     }
 }
