@@ -34,22 +34,19 @@ const ConfigLock lock = {};
 class Config::Impl
 {
 public:
-    Impl(const std::string& name):
+    Impl(const std::string& appName, const std::string& instanceName):
         locked_(false),
-        name_(name)
+        //name_(instanceName.empty()? appName: (appName + ':' + instanceName)),
+        appName_(appName),
+        instanceName_(instanceName)
     {
-        const size_t dotPos = name_.find('.');
-        appName_ = name_.substr(0, dotPos);
         if(appName_.empty())
             throw ConfigError("Empty config name");
-        if(dotPos != std::string::npos)
-        {
-            instanceName_ = name_.substr(dotPos + 1);
-            if(instanceName_.empty())
-                throw ConfigError(str(
-                    boost::format("Invalid config name '%1%'") % name_ ));
-            config_.push_back(PT::ptree::value_type(instanceName_, PT::ptree()));
-        }
+        if(instanceName_.find('.') != std::string::npos)
+            throw ConfigError(str(
+                boost::format("Invalid instance name '%1%' - must not contain '.'") % instanceName_ ));
+        if(!instanceName_.empty())
+        config_.push_back(PT::ptree::value_type(instanceName_, PT::ptree()));
         config_.push_back(PT::ptree::value_type(appName_, PT::ptree()));
         config_.push_back(PT::ptree::value_type(SHARED_NODE_NAME, PT::ptree()));
     }
@@ -144,7 +141,16 @@ public:
         }
         return std::string();
     }
-    const std::string& name() const { return name_; }
+    std::string name() const
+    {
+        std::string res(appName_);
+        if(!instanceName_.empty())
+        {
+            res += ':';
+            res += instanceName_;
+        }
+        return res;
+    }
     const std::string& appName() const { return appName_; }
     const std::string& instanceName() const { return instanceName_; }
     void lock() { locked_ = true; }
@@ -259,18 +265,12 @@ private:
     }
     //...
     bool locked_;
-    std::string name_, appName_, instanceName_;//...name_ := appName_ ['.' instanceName_]
+    std::string appName_, instanceName_;//...name() := appName_ [':' instanceName_]
     PT::ptree config_;
 };
 
-Config::Config(const ConfigSource& source, const std::string& name):
-    impl_(new Impl(name))
-{
-    impl_->merge(*source.impl_);
-}
-
-Config::Config(const std::string& name):
-    impl_(new Impl(name))
+Config::Config(const std::string& appName, const std::string& instanceName):
+    impl_(new Impl(appName, instanceName))
 {}
 
 Config::Config(const Config& other):
@@ -287,7 +287,7 @@ const Config& Config::operator=(const Config& other)
 
 Config::~Config() {}
 
-const std::string& Config::name() const
+std::string Config::name() const
 {
     return impl_->name();
 }

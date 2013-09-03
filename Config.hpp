@@ -22,10 +22,9 @@ struct ConfigLock {};
 class Config
 {
 public:
-    Config(
-        const ConfigSource& source,
-        const std::string& name);
-    explicit Config(const std::string& name);
+    explicit Config(
+        const std::string& name,
+        const std::string& instanceName = std::string());
     Config(const Config& other);
     const Config& operator=(const Config& other);
     ~Config();
@@ -34,7 +33,7 @@ public:
     void operator<<(ConfigLock);
     std::string toString() const;//TODO: finish
 
-    const std::string& name() const;
+    std::string name() const;
     const std::string& appName() const;
     const std::string& instanceName() const;
     

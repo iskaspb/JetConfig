@@ -93,8 +93,10 @@ TEST(Config, SharedAttrConfigWithoutRootConfigElement)
         "   </libName>\n"
         "</shared>\n",
         "shared.xml");
-    const jet::Config config(shared, "appName");
-    EXPECT_EQ("appName", config.name());
+    jet::Config config("appName");
+    config << shared << jet::lock;
+    cout << config.name() << endl;
+    EXPECT_EQ(std::string("appName"), config.name());
     EXPECT_EQ("value",   config.get("libName.strAttr"));
     EXPECT_EQ("value",   config.get<std::string>("libName.strAttr"));
     EXPECT_EQ("12",      config.get("libName.intAttr"));
@@ -107,7 +109,7 @@ TEST(Config, SharedAttrConfigWithoutRootConfigElement)
 TEST(Config, InconsistentConfigName)
 {
     const jet::ConfigSource source("<wrongConfigName><attr>value</attr></wrongConfigName>", "xmlSource");
-    CONFIG_ERROR(jet::Config(source, "ApplicationName"),
+    CONFIG_ERROR(jet::Config("ApplicationName") << source << jet::lock,
         "Can't merge source 'xmlSource' into config 'ApplicationName' because it has different config name 'wrongConfigName'");
 }
 
@@ -157,14 +159,15 @@ TEST(Config, UnmatchedNamesConfigSourceMerge)
 TEST(Config, AnyCaseSystemConfigName)
 {
     const jet::ConfigSource s1("<conFIG><appName attr='10'></appName></conFIG>", "s1.xml");
-    const jet::Config config(s1, "appName");
+    jet::Config config("appName");
+    config << s1;
     EXPECT_EQ(10, config.get<int>("attr"));
 }
 
 TEST(Config, InstanceConfigName)
 {
-    jet::Config config("appName.i1");
-    EXPECT_EQ("appName.i1", config.name());
+    jet::Config config("appName", "i1");
+    EXPECT_EQ("appName:i1", config.name());
     EXPECT_EQ("appName", config.appName());
     EXPECT_EQ("i1", config.instanceName());
 }
@@ -173,7 +176,7 @@ TEST(Config, SystemConfigInvalidData)
 {
     const jet::ConfigSource s1("<config>data</config>", "s1.xml");
     CONFIG_ERROR(
-        const jet::Config config(s1, "appName"),
+        jet::Config("appName") << s1,
         "Invalid data node 'data' in config 'appName' taken from config source 's1.xml'");
 }
 
@@ -181,7 +184,7 @@ TEST(Config, AppConfigInvalidData)
 {
     const jet::ConfigSource s1("<config><appName>data</appName></config>", "s1.xml");
     CONFIG_ERROR(
-        const jet::Config config(s1, "appName"),
+        jet::Config("appName") << s1,
         "Invalid data node 'data' in config 'appName' taken from config source 's1.xml'");
 }
 
@@ -189,35 +192,35 @@ TEST(Config, SharedConfigInvalidData)
 {
     const jet::ConfigSource s1("<config><shared>data</shared></config>", "s1.xml");
     CONFIG_ERROR(
-        const jet::Config config(s1, "appName"),
+        jet::Config("appName") << s1,
         "Invalid data node 'data' in config 'appName' taken from config source 's1.xml'");
 }
 
 TEST(Config, InstanceConfigInvalidData1)
 {
-    const jet::ConfigSource s1("<config><appName.i1>data</appName.i1></config>", "s1.xml");
-    jet::Config config("appName.i1");
+    const jet::ConfigSource s1("<config><appName:i1>data</appName:i1></config>", "s1.xml");
+    jet::Config config("appName", "i1");
     CONFIG_ERROR(
         config << s1 << jet::lock,
-        "Invalid data node 'data' in config 'appName.i1' taken from config source 's1.xml'");
+        "Invalid data node 'data' in config 'appName:i1' taken from config source 's1.xml'");
 }
 
 TEST(Config, InstanceConfigInvalidData2)
 {
     const jet::ConfigSource s2("<config><appName><instance.i1>data</instance.i1></appName></config>", "s2.xml");
-    jet::Config config("appName.i1");
+    jet::Config config("appName", "i1");
     CONFIG_ERROR(
         config << s2 << jet::lock,
-        "Invalid data node 'data' in config 'appName.i1' taken from config source 's2.xml'");
+        "Invalid data node 'data' in config 'appName:i1' taken from config source 's2.xml'");
 }
 
 TEST(Config, InstanceConfigInvalidData3)
 {
     const jet::ConfigSource s3("<config><appName><instance><i1>data</i1></instance></appName></config>", "s3.xml");
-    jet::Config config("appName.i1");
+    jet::Config config("appName", "i1");
     CONFIG_ERROR(
         config << s3 << jet::lock,
-        "Invalid data node 'data' in config 'appName.i1' taken from config source 's3.xml'");
+        "Invalid data node 'data' in config 'appName:i1' taken from config source 's3.xml'");
 }
 
 TEST(Config, LockConfig)
@@ -232,12 +235,12 @@ TEST(Config, LockConfig)
         "   <instance.1 attr2='10'/>\n"
         "</appName>",
         "s2.xml");
-    jet::Config config("appName.1");
+    jet::Config config("appName", "1");
     config << s1 << jet::lock;
     EXPECT_EQ("value", config.get("attr"));
     CONFIG_ERROR(
         config << s2,
-        "Config 'appName.1' is locked");
+        "Config 'appName:1' is locked");
 }
 
 TEST(Config, ProhibitedSimpleSharedAttributes)
@@ -248,7 +251,7 @@ TEST(Config, ProhibitedSimpleSharedAttributes)
         "</shared>",
         "s1.xml");
     CONFIG_ERROR(
-        jet::Config(s1, "appName"),
+        jet::Config("appName") << s1,
         "Attribute 'attr1' in 'shared' section of config source 's1.xml' must be defined under subsection");
 }
 
@@ -260,7 +263,7 @@ TEST(Config, ProhibitedInstanceSubsectionInSharedSection)
         "</shared>",
         "s1.xml");
     CONFIG_ERROR(
-        jet::Config(s1, "appName"),
+        jet::Config("appName") << s1,
         "Subsecion name 'instance' is prohibited in 'shared' section. Config source 's1.xml'");
 }
 
