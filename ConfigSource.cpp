@@ -67,7 +67,7 @@ std::string ConfigSource::Impl::toString(const bool pretty) const
     return strm.str();
 }
 
-void ConfigSource::Impl::normalizeXmlTree(PT::ptree& rawTree)
+void ConfigSource::Impl::normalizeXmlTree(PT::ptree& rawTree)//TODO: convert any path containing '.' to subtree: <key.subkey/> -> <key><subkey/></key>
 {
     if (rawTree.empty())
         throw ConfigSource(str(

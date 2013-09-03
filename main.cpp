@@ -264,6 +264,7 @@ TEST(Config, ProhibitedInstanceSubsectionInSharedSection)
         "Subsecion name 'instance' is prohibited in 'shared' section. Config source 's1.xml'");
 }
 
+//TODO: test ConfigSource '.' normalization: <key.subkey/> -> <key><subkey/></key>
 //TODO: prohibit duplicate 'instance' in different combinations in one config source
 //TODO: prohibit duplicate 'shared' in one config source
 //TODO: prohibit duplicate application defintions in one config source
