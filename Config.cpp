@@ -15,10 +15,10 @@
 #include <boost/format.hpp>
 #include <sstream>
 
-#include <boost/property_tree/xml_parser.hpp>
-#include <iostream>
-using std::cout;
-using std::endl;
+//#include <boost/property_tree/xml_parser.hpp>
+//#include <iostream>
+//using std::cout;
+//using std::endl;
 
 namespace PT = boost::property_tree;
 
@@ -38,11 +38,8 @@ public:
     {
         if(appName_.empty())
             throw ConfigError("Empty config name");
-        if(instanceName_.find('.') != std::string::npos)
-            throw ConfigError(str(
-                boost::format("Invalid instance name '%1%' - must not contain '.'") % instanceName_ ));
         if(!instanceName_.empty())
-        config_.push_back(PT::ptree::value_type(instanceName_, PT::ptree()));
+            config_.push_back(PT::ptree::value_type(instanceName_, PT::ptree()));
         config_.push_back(PT::ptree::value_type(appName_, PT::ptree()));
         config_.push_back(PT::ptree::value_type(SHARED_NODE_NAME, PT::ptree()));
     }
@@ -74,21 +71,10 @@ public:
                         otherConfig.get_child_optional(appName()));
                     if(appNode)
                     {
-                        bool duplicateInstanceDefinition = false;
-                        {
-                            const PT::ptree::const_assoc_iterator dupInstanceNode(
-                                appNode->find(
-                                    INSTANCE_NODE_NAME "." + instanceName_));
-                            duplicateInstanceDefinition = dupInstanceNode != appNode->not_found();
-                        }
-                        if(!duplicateInstanceDefinition)
-                        {
-                            const boost::optional<const PT::ptree&> dupInstanceNode(
-                                appNode->get_child_optional(
-                                    INSTANCE_NODE_NAME "." + instanceName_));
-                            duplicateInstanceDefinition = dupInstanceNode;
-                        }
-                        if(duplicateInstanceDefinition)
+                        const boost::optional<const PT::ptree&> dupInstanceNode(
+                            appNode->get_child_optional(
+                                INSTANCE_NODE_NAME "." + instanceName_));
+                        if(dupInstanceNode)
                             throw ConfigError(str(
                                 boost::format("Config source '%1%' has duplicate definition of config '%2%'") %
                                 source.name() %
@@ -193,31 +179,11 @@ private:
             assert(iter->first == appName());
             PT::ptree& self(iter->second);
             merge(self, from);
-            bool hasInstanceNode = false;
-            {
-                const boost::optional<const PT::ptree&> instanceNode(
-                    self.get_child_optional(
-                        INSTANCE_NODE_NAME "." + instanceName_));
-                if(instanceNode)
-                {
-                    hasInstanceNode = true;
-                    mergeInstance(*instanceNode, sourceName);
-                }
-            }
-            {
-                const PT::ptree::const_assoc_iterator instanceNode(
-                    self.find(
-                        INSTANCE_NODE_NAME "." + instanceName_));
-                if(instanceNode != self.not_found())
-                {
-                    if(hasInstanceNode)
-                        throw ConfigError(str(
-                            boost::format("Config source '%1%' has duplicate definition of config '%2%'") %
-                            sourceName %
-                            name()));
-                    mergeInstance(instanceNode->second, sourceName);
-                }
-            }
+            const boost::optional<const PT::ptree&> instanceNode(
+                self.get_child_optional(
+                    INSTANCE_NODE_NAME "." + instanceName_));
+            if(instanceNode)
+                mergeInstance(*instanceNode, sourceName);
         }
     }
     void mergeInstance(const PT::ptree& from, const std::string& sourceName)

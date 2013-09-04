@@ -121,7 +121,6 @@ TEST(Config, SharedAttrConfigWithoutRootConfigElement)
         "shared.xml");
     jet::Config config("appName");
     config << shared << jet::lock;
-    cout << config.name() << endl;
     EXPECT_EQ(std::string("appName"), config.name());
     EXPECT_EQ("value",   config.get("libName.strAttr"));
     EXPECT_EQ("value",   config.get<std::string>("libName.strAttr"));
@@ -233,15 +232,6 @@ TEST(Config, InstanceConfigInvalidData1)
 
 TEST(Config, InstanceConfigInvalidData2)
 {
-    const jet::ConfigSource s2("<config><appName><instance.i1>data</instance.i1></appName></config>", "s2.xml");
-    jet::Config config("appName", "i1");
-    CONFIG_ERROR(
-        config << s2 << jet::lock,
-        "Invalid data node 'data' in config 'appName:i1' taken from config source 's2.xml'");
-}
-
-TEST(Config, InstanceConfigInvalidData3)
-{
     const jet::ConfigSource s3("<config><appName><instance><i1>data</i1></instance></appName></config>", "s3.xml");
     jet::Config config("appName", "i1");
     CONFIG_ERROR(
@@ -252,14 +242,10 @@ TEST(Config, InstanceConfigInvalidData3)
 TEST(Config, LockConfig)
 {
     const jet::ConfigSource s1(
-        "<appName>\n"
-        "   <instance.1 attr='value'/>\n"
-        "</appName>",
+        "<appName:1 attr='value'/>",
         "s1.xml");
     const jet::ConfigSource s2(
-        "<appName>\n"
-        "   <instance.1 attr2='10'/>\n"
-        "</appName>",
+        "<appName:1 attr2='10'/>",
         "s2.xml");
     jet::Config config("appName", "1");
     config << s1 << jet::lock;
@@ -293,7 +279,6 @@ TEST(Config, ProhibitedInstanceSubsectionInSharedSection)
         "Subsecion name 'instance' is prohibited in 'shared' section. Config source 's1.xml'");
 }
 
-//TODO: test ConfigSource '.' normalization: <key.subkey/> -> <key><subkey/></key>
 //TODO: prohibit duplicate 'instance' in different combinations in one config source
 //TODO: prohibit duplicate 'shared' in one config source
 //TODO: prohibit duplicate application defintions in one config source
