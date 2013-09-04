@@ -20,10 +20,6 @@
 using std::cout;
 using std::endl;
 
-#define ROOT_NODE_NAME     "config"
-#define SHARED_NODE_NAME   "shared"
-#define INSTANCE_NODE_NAME "instance"
-
 namespace PT = boost::property_tree;
 
 namespace jet

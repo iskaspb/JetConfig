@@ -9,6 +9,7 @@
 #include "ConfigError.hpp"
 #include <boost/property_tree/exceptions.hpp>
 #include <boost/property_tree/xml_parser.hpp>
+#include <boost/algorithm/string.hpp>
 #include <boost/foreach.hpp>
 #include <boost/format.hpp>
 
@@ -32,6 +33,7 @@ ConfigSource::Impl::Impl(std::istream& input, const std::string& name, ConfigSou
                     boost::format("Parsing of config format %1% is not implemented") %
                     format));
     }
+    normalizeColon(root_);
     validateTree(root_);
 }
 
@@ -49,6 +51,7 @@ ConfigSource::Impl::Impl(const std::string& filename, ConfigSource::Format forma
                     boost::format("Parsing of config format %1% is not implemented") %
                     format));
     }
+    normalizeColon(root_);
     validateTree(root_);
 }
 
@@ -67,7 +70,7 @@ std::string ConfigSource::Impl::toString(const bool pretty) const
     return strm.str();
 }
 
-void ConfigSource::Impl::normalizeXmlTree(PT::ptree& rawTree)//TODO: convert any path containing '.' to subtree: <key.subkey/> -> <key><subkey/></key>
+void ConfigSource::Impl::normalizeXmlTree(PT::ptree& rawTree)
 {
     if (rawTree.empty())
         throw ConfigSource(str(
@@ -93,6 +96,50 @@ void ConfigSource::Impl::normalizeXmlTreeImpl(const PT::path& currentPath, PT::p
             ++iter;
         }
     }
+}
+
+void ConfigSource::Impl::normalizeColon(PT::ptree& root)
+{
+    //TODO: you can assume only one root node only for xml
+    const std::string& rootName(root.front().first);
+    if(boost::to_lower_copy(rootName) == SHARED_NODE_NAME)
+        return;
+    if(boost::to_lower_copy(rootName) != ROOT_NODE_NAME)
+        return normalizeColonImpl(root, root.begin());
+    
+    PT::ptree& configNode(root.front().second);
+    const PT::ptree::iterator end(configNode.end());
+    for(PT::ptree::iterator iter(configNode.begin());
+        end != iter;
+        ++iter)
+    {
+        normalizeColonImpl(configNode, iter);
+    }
+}
+
+void ConfigSource::Impl::normalizeColonImpl(
+    PT::ptree& parent,
+    const PT::ptree::iterator& childIter)
+{
+    typedef PT::ptree::value_type ValueType;
+    typedef PT::ptree::iterator Iter;
+    
+    const std::string& childName(childIter->first);
+    const size_t pos = childName.find(':');
+    if(std::string::npos == pos)
+        return;
+    const std::string appName(childName.substr(0, pos));
+    const std::string instanceName(childName.substr(pos + 1));
+    if(appName.empty() || instanceName.empty())
+        throw ConfigError(str(
+            boost::format("Invalid colon in element '%1%' in config source '%2%'. Expected format 'appName:instanceName'") %
+                childName %
+                name()));
+    const Iter newChildIter = parent.insert(childIter, ValueType(appName, PT::ptree()));
+    const Iter grandChildIter = newChildIter->second.push_back(ValueType(INSTANCE_NODE_NAME, PT::ptree()));
+    const Iter grandGrandChildIter = grandChildIter->second.push_back(ValueType(instanceName, PT::ptree()));
+    childIter->second.swap(grandGrandChildIter->second);
+    parent.erase(childIter);
 }
 
 void ConfigSource::Impl::copyUniqueChildren(const PT::path& currentPath, const PT::ptree& from, PT::ptree& to) const

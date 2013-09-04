@@ -15,8 +15,8 @@ using std::endl;
 
 TEST(ConfigSource, SimpleConfigSource)
 {
-    const jet::ConfigSource source("<root> <attr> value</attr></root>");
-    EXPECT_EQ("<root><attr>value</attr></root>", source.toString(jet::ConfigSource::OneLine));
+    const jet::ConfigSource source("<config> <attr> value</attr></config>");
+    EXPECT_EQ("<config><attr>value</attr></config>", source.toString(jet::ConfigSource::OneLine));
 }
 
 TEST(ConfigSource, EmptyConfigSource)
@@ -33,36 +33,62 @@ TEST(ConfigSource, InvalidConfigSource)
 
 TEST(ConfigSource, SimpleConfigSourcePrettyPrint)
 {
-    const jet::ConfigSource source("<root><attr>value  </attr></root>");
+    const jet::ConfigSource source("<config><attr>value  </attr></config>");
     EXPECT_EQ(
-        "<root>\n"
+        "<config>\n"
         "  <attr>value</attr>\n"
-        "</root>\n",
+        "</config>\n",
         source.toString());
 }
 
 TEST(ConfigSource, AttrConfigSource)
 {
-    const jet::ConfigSource source("<root attr='value'>   </root>");
+    const jet::ConfigSource source("<config attr='value'>   </config>");
     EXPECT_EQ(
-        "<root>\n"
+        "<config>\n"
         "  <attr>value</attr>\n"
-        "</root>\n",
+        "</config>\n",
         source.toString());
+}
+
+TEST(ConfigSource, NormalizeColonConfigSource)
+{
+    const jet::ConfigSource source("<config><app:i1 attr='value'/></config>");
+    EXPECT_EQ(
+        "<config>\n"
+        "  <app>\n"
+        "    <instance>\n"
+        "      <i1>\n"
+        "        <attr>value</attr>\n"
+        "      </i1>\n"
+        "    </instance>\n"
+        "  </app>\n"
+        "</config>\n",
+        source.toString());
+}
+
+TEST(ConfigSource, ErrorColonConfigSource)
+{
+    CONFIG_ERROR(
+        jet::ConfigSource("<config><app: attr='value'/></config>", "s1.xml"),
+        "Invalid colon in element 'app:' in config source 's1.xml'. Expected format 'appName:instanceName'");
+    CONFIG_ERROR(
+        jet::ConfigSource("<config><:i1 attr='value'/></config>", "s1.xml"),
+        "Invalid colon in element ':i1' in config source 's1.xml'. Expected format 'appName:instanceName'");
 }
 
 TEST(ConfigSource, ComplexConfigSource)
 {
-    const jet::ConfigSource source("<root attr1='value1' attr2=\"value2\"><attr3 attr4='value4'><attr5>value5</attr5></attr3></root>");
+    const jet::ConfigSource source("<config attr1='value1' attr2=\"value2\"><attr3 attr4='value4'><attr5>value5</attr5></attr3></config>");
     EXPECT_EQ(
-        "<root>\n"
+        "<config>\n"
         "  <attr1>value1</attr1>\n"
         "  <attr2>value2</attr2>\n"
         "  <attr3>\n"
         "    <attr4>value4</attr4>\n"
         "    <attr5>value5</attr5>\n"
         "  </attr3>\n"
-        "</root>\n",
+        "</config>\n",
         source.toString());
 }
 
@@ -70,17 +96,17 @@ TEST(ConfigSource, InconsistentAttributeDefinitionConfigSource)
 {
     CONFIG_ERROR(
         jet::ConfigSource(
-            "<root attr='value1'>\n"
+            "<config attr='value1'>\n"
             "   data\n"
-            "</root>\n",
+            "</config>\n",
             "InconsistentAttributeDefinitionConfigSource"),
-        "Invalid element 'root' in config 'InconsistentAttributeDefinitionConfigSource' contains both value and child attributes");
+        "Invalid element 'config' in config 'InconsistentAttributeDefinitionConfigSource' contains both value and child attributes");
 }
 
 TEST(ConfigSource, DuplicateAttrConfigSource)
 {//TODO: submit bugreport to boost comunity - two attributes with the same name is not well formed xml
-    CONFIG_ERROR(jet::ConfigSource("<root attr='value1' attr='value2'></root>"),
-        "Duplicate definition of attribute 'root.attr' in config 'unknown'");
+    CONFIG_ERROR(jet::ConfigSource("<config attr='value1' attr='value2'></config>"),
+        "Duplicate definition of attribute 'config.attr' in config 'unknown'");
 }
 
 TEST(Config, SharedAttrConfigWithoutRootConfigElement)
