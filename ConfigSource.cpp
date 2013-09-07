@@ -38,7 +38,7 @@ ConfigSource::Impl::Impl(std::istream& input, const std::string& name, ConfigSou
                     boost::format("Parsing of config format %1% is not implemented") %
                     format));
     }
-    normalizeColon(root_);
+    normalizeInstanceDelimiter(root_);
     validateTree(root_);
 }
 
@@ -56,7 +56,7 @@ ConfigSource::Impl::Impl(const std::string& filename, ConfigSource::Format forma
                     boost::format("Parsing of config format %1% is not implemented") %
                     format));
     }
-    normalizeColon(root_);
+    normalizeInstanceDelimiter(root_);
     validateTree(root_);
 }
 
@@ -103,7 +103,7 @@ void ConfigSource::Impl::normalizeXmlTreeImpl(const Path& currentPath, Tree& raw
     }
 }
 
-void ConfigSource::Impl::normalizeColon(Tree& root)
+void ConfigSource::Impl::normalizeInstanceDelimiter(Tree& root)
 {
     //TODO: you can assume only one root node only for xml
     const std::string& rootName(root.front().first);
@@ -111,7 +111,7 @@ void ConfigSource::Impl::normalizeColon(Tree& root)
         return;
     if(boost::to_lower_copy(rootName) != ROOT_NODE_NAME)
     {
-        normalizeColonImpl(root, root.begin());
+        normalizeInstanceDelimiterImpl(root, root.begin());
         return;
     }
     
@@ -119,7 +119,7 @@ void ConfigSource::Impl::normalizeColon(Tree& root)
     const Iter end(configNode.end());
     for(Iter iter(configNode.begin()); end != iter;)
     {
-        iter = normalizeColonImpl(configNode, iter);
+        iter = normalizeInstanceDelimiterImpl(configNode, iter);
     }
 }
 
@@ -134,12 +134,12 @@ inline Iter findOrInsertChild(Tree& parent, Iter insertPosition, const std::stri
 }
 }//anonymous namespace
 
-Iter ConfigSource::Impl::normalizeColonImpl(
+Iter ConfigSource::Impl::normalizeInstanceDelimiterImpl(
     Tree& parent,
     const Iter& childIter)
 {
     const std::string& childName(childIter->first);
-    const size_t pos = childName.find(':');
+    const size_t pos = childName.find(INSTANCE_DELIMITER_CHAR);
     if(std::string::npos == pos)
     {
         Iter nextIter(childIter);
@@ -150,9 +150,19 @@ Iter ConfigSource::Impl::normalizeColonImpl(
     const std::string instanceName(childName.substr(pos + 1));
     if(appName.empty() || instanceName.empty())
         throw ConfigError(str(
-            boost::format("Invalid colon in element '%1%' in config source '%2%'. Expected format 'appName:instanceName'") %
+            boost::format(
+                "Invalid '"
+                INSTANCE_DELIMITER_STR
+                "' in element '%1%' in config source '%2%'. Expected format 'appName"
+                INSTANCE_DELIMITER_STR
+                "instanceName'") %
                 childName %
                 name()));
+    if(boost::to_lower_copy(appName) == SHARED_NODE_NAME)
+        throw ConfigError(str(
+            boost::format("Shared node '%1%' can't have instance. Found in config source '%2%'") %
+            childName %
+            name()));
     const Iter newChildIter = findOrInsertChild(parent, childIter, appName);
     const Iter grandChildIter = findOrInsertChild(newChildIter->second, newChildIter->second.end(), INSTANCE_NODE_NAME);
     const Iter grandGrandChildIter = findOrInsertChild(grandChildIter->second, grandChildIter->second.end(), instanceName);
@@ -174,30 +184,62 @@ void ConfigSource::Impl::copyUniqueChildren(const Path& currentPath, const Tree&
     }
 }
 
-void ConfigSource::Impl::validateTree(const Tree& tree) const
+namespace
 {
-    if (tree.empty())
-        throw ConfigSource(str(
-            boost::format("Config source '%1%' is empty") % name()));
-    const Tree::value_type& child(tree.front());
-    
-    validateTreeImpl(child.first, child.second);
+
+class Validator: boost::noncopyable
+{
+public:
+    Validator(const std::string& sourceName): sourceName_(sourceName) {}
+    void ensureTreeDoesNotHaveDataAndAttributeNodes(const Tree& root)
+    {
+        const Tree::value_type& child(root.front());
+        
+        ensureNodeDoesNotHaveDataAndAttribute(child.first, child.second);
+    }
+    void ensureNonEmptyTree(const Tree& tree) const
+    {
+        if (tree.empty())
+            throw ConfigSource(str(
+                boost::format("Config source '%1%' is empty") % sourceName_));
+    }
+    void ensureNoSharedNodeDuplicates(const Tree& root) const
+    {
+        const Tree::value_type& child(root.front());
+        if(child.first != ROOT_NODE_NAME)
+            return;
+        if(child.second.count(SHARED_NODE_NAME) > 1)
+            throw ConfigError(str(
+                boost::format("Duplicate shared node in config source '%1%'") % sourceName_));
+            
+    }
+private:
+    void ensureNodeDoesNotHaveDataAndAttribute(const Path& currentPath, const Tree& tree)
+    {
+        if(!tree.empty() && !tree.data().empty())
+            throw ConfigError(str(
+                boost::format("Invalid element '%1%' in config source '%2%' contains both value and child attributes") %
+                currentPath.dump() %
+                sourceName_));
+        BOOST_FOREACH(const Tree::value_type& node, tree)
+        {
+            const Path nodePath(currentPath/Path(node.first));
+            ensureNodeDoesNotHaveDataAndAttribute(nodePath, node.second);
+        }
+    }
+    const std::string& sourceName_;
+};
+
+}//anonymous namespace
+
+void ConfigSource::Impl::validateTree(const Tree& root) const
+{
+    Validator validator(name());
+    validator.ensureNonEmptyTree(root);
+    validator.ensureTreeDoesNotHaveDataAndAttributeNodes(root);
+    validator.ensureNoSharedNodeDuplicates(root);
 }
 
-void ConfigSource::Impl::validateTreeImpl(const Path& currentPath, const Tree& tree) const
-{
-    if(!tree.empty() && !tree.data().empty())
-        throw ConfigError(str(
-            boost::format("Invalid element '%1%' in config '%2%' contains both value and child attributes") %
-            currentPath.dump() %
-            name()));
-    BOOST_FOREACH(const Tree::value_type& node, tree)
-    {
-        const Path nodePath(currentPath/Path(node.first));
-        validateTreeImpl(nodePath, node.second);
-    }
-}
-    
 ConfigSource::ConfigSource(
     const std::string& source,
     const std::string& name,

@@ -15,6 +15,8 @@
 #define ROOT_NODE_NAME     "config"
 #define SHARED_NODE_NAME   "shared"
 #define INSTANCE_NODE_NAME "instance"
+#define INSTANCE_DELIMITER_CHAR ':'
+#define INSTANCE_DELIMITER_STR ":"
 
 namespace jet
 {
@@ -32,8 +34,8 @@ private:
     void normalizeXmlTreeImpl(
         const boost::property_tree::path& currentPath,
         boost::property_tree::ptree& rawTree);
-    void normalizeColon(boost::property_tree::ptree& rawTree);
-    boost::property_tree::ptree::iterator normalizeColonImpl(
+    void normalizeInstanceDelimiter(boost::property_tree::ptree& rawTree);
+    boost::property_tree::ptree::iterator normalizeInstanceDelimiterImpl(
         boost::property_tree::ptree& parent,
         const boost::property_tree::ptree::iterator& child);
     void copyUniqueChildren(
@@ -41,9 +43,6 @@ private:
         const boost::property_tree::ptree& from,
         boost::property_tree::ptree& to) const;
     void validateTree(const boost::property_tree::ptree& tree) const;
-    void validateTreeImpl(
-        const boost::property_tree::path& currentPath,
-        const boost::property_tree::ptree& tree) const;
     //...
     boost::property_tree::ptree root_;
     std::string name_;

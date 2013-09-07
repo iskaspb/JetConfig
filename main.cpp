@@ -71,16 +71,15 @@ TEST(ConfigSource, ErrorColonConfigSource)
 {
     CONFIG_ERROR(
         jet::ConfigSource("<config><app: attr='value'/></config>", "s1.xml"),
-        "Invalid colon in element 'app:' in config source 's1.xml'. Expected format 'appName:instanceName'");
+        "Invalid ':' in element 'app:' in config source 's1.xml'. Expected format 'appName:instanceName'");
     CONFIG_ERROR(
         jet::ConfigSource("<config><:i1 attr='value'/></config>", "s1.xml"),
-        "Invalid colon in element ':i1' in config source 's1.xml'. Expected format 'appName:instanceName'");
+        "Invalid ':' in element ':i1' in config source 's1.xml'. Expected format 'appName:instanceName'");
 }
 
 TEST(ConfigSource, CombineColonConfigSource1)
 {
     const jet::ConfigSource source("<config><app:i1 attr='value'/><app:i2 attr2='value2'/></config>");
-    cout << source.toString() << endl;
     EXPECT_EQ(
         "<config>\n"
         "  <app>\n"
@@ -139,13 +138,29 @@ TEST(ConfigSource, InconsistentAttributeDefinitionConfigSource)
             "   data\n"
             "</config>\n",
             "InconsistentAttributeDefinitionConfigSource"),
-        "Invalid element 'config' in config 'InconsistentAttributeDefinitionConfigSource' contains both value and child attributes");
+        "Invalid element 'config' in config source 'InconsistentAttributeDefinitionConfigSource' contains both value and child attributes");
 }
 
 TEST(ConfigSource, DuplicateAttrConfigSource)
 {//TODO: submit bugreport to boost comunity - two attributes with the same name is not well formed xml
     CONFIG_ERROR(jet::ConfigSource("<config attr='value1' attr='value2'></config>"),
         "Duplicate definition of attribute 'config.attr' in config 'unknown'");
+}
+
+TEST(ConfigSource, InvalidSharedNodeWithInstance)
+{
+    CONFIG_ERROR(
+        jet::ConfigSource("<config><shared:i1><env PATH='/usr/bin'/></shared></config:i1>", "s1.xml"),
+        "Shared node 'shared:i1' can't have instance. Found in config source 's1.xml'");
+}
+
+
+TEST(ConfigSource, InvalidDuplicates)
+{
+    CONFIG_ERROR(
+        jet::ConfigSource("<config><shared/><shared><env PATH='/usr/bin'/></shared></config>", "s1.xml"),
+        "Duplicate shared node in config source 's1.xml'");
+    //TODO: finish
 }
 
 TEST(Config, SharedAttrConfigWithoutRootConfigElement)
