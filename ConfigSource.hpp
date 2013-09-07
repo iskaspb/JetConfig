@@ -23,16 +23,23 @@ class ConfigSource
 public:
     enum Format{ xml, json };
     enum OutputType { Pretty, OneLine };
+    enum FileNameStyle { CaseSensitive, CaseInsensitive };
+    //...
     explicit ConfigSource(
         const std::string& source,
         const std::string& name = "unknown",
-        Format format = xml);
+        Format format = xml,
+        FileNameStyle = CaseSensitive);
     explicit ConfigSource(
         std::istream& source,
         const std::string& name = "unknown",
-        Format format = xml);
+        Format format = xml,
+        FileNameStyle = CaseSensitive);
     ~ConfigSource();
-    static ConfigSource createFromFile(const std::string& filename, Format format = xml);
+    static ConfigSource createFromFile(
+        const std::string& filename,
+        Format format = xml,
+        FileNameStyle = CaseSensitive);
     const std::string& name() const;
     std::string toString(OutputType outputType = Pretty) const;
 private:

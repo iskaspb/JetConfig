@@ -51,7 +51,7 @@ public:
         const std::string& otherConfigName(root.back().first);
         const PT::ptree& otherConfig(root.back().second);
         
-        if(boost::to_lower_copy(otherConfigName) == ROOT_NODE_NAME)
+        if(otherConfigName == ROOT_NODE_NAME)
         {
             validateNoData(otherConfig, source.name());
             {//...merge shared attributes (if found)
@@ -91,7 +91,7 @@ public:
                     mergeSelf(*selfNode, source.name());
             }
         }
-        else if(boost::to_lower_copy(otherConfigName) == SHARED_NODE_NAME)
+        else if(otherConfigName == SHARED_NODE_NAME)
         {
             mergeShared(otherConfig, source.name());
         }
@@ -150,13 +150,13 @@ private:
         BOOST_FOREACH(const PT::ptree::value_type& node, from)
         {
             const std::string& nodeName = node.first;
-            if(boost::to_lower_copy(nodeName) == "instance")
+            if(nodeName == INSTANCE_NODE_NAME)
                 throw ConfigError(str(
-                    boost::format("Subsecion name 'instance' is prohibited in 'shared' section. Config source '%1%'") %
+                    boost::format("Subsecion name '" INSTANCE_NODE_NAME "' is prohibited in '" SHARED_NODE_NAME "' section. Config source '%1%'") %
                     sourceName));
             if(node.second.empty())
                 throw ConfigError(str(
-                    boost::format("Attribute '%1%' in 'shared' section of config source '%2%' must be defined under subsection") %
+                    boost::format("Attribute '%1%' in '" SHARED_NODE_NAME "' section of config source '%2%' must be defined under subsection") %
                     nodeName %
                     sourceName));
         }

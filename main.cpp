@@ -21,14 +21,20 @@ TEST(ConfigSource, SimpleConfigSource)
 
 TEST(ConfigSource, EmptyConfigSource)
 {
+    {
+        const jet::ConfigSource source("<config></config>");
+        EXPECT_EQ(
+            "<config/>\n",
+            source.toString());
+    }
     CONFIG_ERROR(jet::ConfigSource("  "),
         "Couldn't parse config 'unknown'. Reason:");
 }
 
 TEST(ConfigSource, InvalidConfigSource)
 {
-    CONFIG_ERROR(jet::ConfigSource("  invalid "),
-        "Couldn't parse config 'unknown'. Reason:");
+    CONFIG_ERROR(jet::ConfigSource("  invalid ", "config.xml"),
+        "Couldn't parse config 'config.xml'. Reason:");
 }
 
 TEST(ConfigSource, SimpleConfigSourcePrettyPrint)
@@ -77,9 +83,13 @@ TEST(ConfigSource, ErrorColonConfigSource)
         "Invalid ':' in element ':i1' in config source 's1.xml'. Expected format 'appName:instanceName'");
 }
 
-TEST(ConfigSource, CombineColonConfigSource1)
+TEST(ConfigSource, CombineAbbriviatedInstanceConfigSource1)
 {
-    const jet::ConfigSource source("<config><app:i1 attr='value'/><app:i2 attr2='value2'/></config>");
+    const jet::ConfigSource source(
+        "<config>"
+        "   <app:i1 attr='value'/>"
+        "   <app:i2 attr2='value2'/>"
+        "</config>");
     EXPECT_EQ(
         "<config>\n"
         "  <app>\n"
@@ -96,9 +106,13 @@ TEST(ConfigSource, CombineColonConfigSource1)
         source.toString());
 }
 
-TEST(ConfigSource, CombineColonConfigSource2)
+TEST(ConfigSource, CombineAbbriviatedInstanceConfigSource2)
 {
-    const jet::ConfigSource source("<config><app attr='value' attr1='value1'/><app:i2 attr1='value11' attr2='value2'/></config>");
+    const jet::ConfigSource source(
+        "<config>"
+        "   <app attr='value' attr1='value1'/>"
+        "   <app:i2 attr1='value11' attr2='value2'/>"
+        "</config>");
     EXPECT_EQ(
         "<config>\n"
         "  <app>\n"
@@ -158,9 +172,115 @@ TEST(ConfigSource, InvalidSharedNodeWithInstance)
 TEST(ConfigSource, InvalidDuplicates)
 {
     CONFIG_ERROR(
-        jet::ConfigSource("<config><shared/><shared><env PATH='/usr/bin'/></shared></config>", "s1.xml"),
+        jet::ConfigSource(
+            "<config>"
+            "   <shared><lib attr='value'/></shared>"
+            "   <shared><env PATH='/usr/bin'/></shared>"
+            "</config>",
+            "s1.xml"),
         "Duplicate shared node in config source 's1.xml'");
-    //TODO: finish
+    CONFIG_ERROR(
+        jet::ConfigSource(
+            "<config>"
+            "   <shared>"
+            "       <lib attr='value'/>"
+            "       <lib attr2='value2'/>"
+            "   </shared>"
+            "</config>",
+            "s1.xml"),
+        "Duplicate shared node 'lib' in config source 's1.xml'");
+    CONFIG_ERROR(
+        jet::ConfigSource(
+            "   <shared>"
+            "       <lib attr='value'/>"
+            "       <lib attr2='value2'/>"
+            "   </shared>",
+            "s1.xml"),
+        "Duplicate shared node 'lib' in config source 's1.xml'");
+    CONFIG_ERROR(
+        jet::ConfigSource(
+            "<config>"
+            "   <appName attr='value'/>"
+            "   <appName><env PATH='/usr/bin'/></appName>"
+            "</config>", "s1.xml"),
+        "Duplicate node 'appName' in config source 's1.xml'");
+    CONFIG_ERROR(
+        jet::ConfigSource(
+            "<config>\n"
+            "   <appName:i1><env PATH='/usr/bin'/></appName:i1>\n"
+            "   <appName:i1><env PATH='/usr:/usr/bin'/></appName:i1>\n"
+            "</config>\n",
+            "s1.xml"),
+        "Duplicate node 'appName:i1' in config source 's1.xml'");
+    CONFIG_ERROR(
+        jet::ConfigSource(
+            "<config>\n"
+            "   <appName><instance><i1 attr='value'/></instance></appName>\n"
+            "   <appName:i1><env PATH='/usr/bin'/></appName:i1>\n"
+            "</config>\n",
+            "s1.xml"),
+        "Duplicate node 'appName:i1' in config source 's1.xml'");
+    CONFIG_ERROR(
+        jet::ConfigSource(
+            "<config>\n"
+            "   <appName>\n"
+            "       <instance><i1 attr='value'/></instance>\n"
+            "       <instance><i2 attr='value'/></instance>\n"
+            "   </appName>\n"
+            "</config>\n",
+            "s1.xml"),
+        "Duplicate instance node under 'appName' node in config source 's1.xml'");
+    CONFIG_ERROR(
+        jet::ConfigSource(
+            "<appName>\n"
+            "   <instance><i1 attr='value'/></instance>\n"
+            "   <instance><i2 attr='value'/></instance>\n"
+            "</appName>\n",
+            "s1.xml"),
+        "Duplicate instance node under 'appName' node in config source 's1.xml'");
+    CONFIG_ERROR(
+        jet::ConfigSource(
+            "<config>\n"
+            "   <appName>"
+            "       <instance>"
+            "           <i1 attr='value'/>"
+            "           <i1 attr2='value2'/>"
+            "       </instance>"
+            "   </appName>\n"
+            "</config>\n",
+            "s1.xml"),
+        "Duplicate node 'appName:i1' in config source 's1.xml'");
+}
+
+TEST(Config, NormalizeKeywords)
+{
+    EXPECT_EQ(jet::ConfigSource("<Config/>").toString(), "<config/>\n");
+    EXPECT_EQ(
+        jet::ConfigSource("<Shared/>").toString(jet::ConfigSource::OneLine),
+        "<shared/>");
+    EXPECT_EQ(
+        jet::ConfigSource(
+            "<config><Shared/></config>").toString(jet::ConfigSource::OneLine),
+        "<config><shared/></config>");
+    EXPECT_EQ(
+        jet::ConfigSource(
+            "<app><Instance><i1/></Instance></app>"
+            ).toString(jet::ConfigSource::OneLine),
+        "<app><instance><i1/></instance></app>");
+    EXPECT_EQ(
+        jet::ConfigSource(
+            "<config><app><Instance><i1/></Instance></app></config>"
+            ).toString(jet::ConfigSource::OneLine),
+        "<config><app><instance><i1/></instance></app></config>");
+    EXPECT_EQ(jet::ConfigSource("<APP/>").toString(), "<APP/>\n");
+    EXPECT_EQ(//...this is for Windows file name convention
+        jet::ConfigSource(
+            "<APP/>",
+            "s1.xml",
+            jet::ConfigSource::xml,
+            jet::ConfigSource::CaseInsensitive
+            ).toString(),
+        "<app/>\n");
 }
 
 TEST(Config, SharedAttrConfigWithoutRootConfigElement)
@@ -310,7 +430,7 @@ TEST(Config, LockConfig)
 }
 
 TEST(Config, ProhibitedSimpleSharedAttributes)
-{//...this is to prevent situation when shared attributes are trited as default values for simple attributes in application config
+{//...this is to prevent situation when shared attributes are treated as default values for simple attributes in application config
     const jet::ConfigSource s1(
         "<shared attr1='value1'>\n"
         "   <attr2>value2</attr2>\n"
@@ -333,13 +453,9 @@ TEST(Config, ProhibitedInstanceSubsectionInSharedSection)
         "Subsecion name 'instance' is prohibited in 'shared' section. Config source 's1.xml'");
 }
 
-//TODO: prohibit duplicate 'instance' in different combinations in one config source
-//TODO: prohibit duplicate 'shared' in one config source
-//TODO: prohibit duplicate application defintions in one config source
 //TODO: add optional getter and getter with default value
 //TODO: provide way to get sequence of parameters with the same name
 //TODO: add tests that merges sections of 'instance', <appConfig> and 'shared' in different combinations
 //TODO: add test for serialization of Config
 //TODO: add command line config source
 //TODO: add environment config source
-//TODO: keywords 'shared', 'instance', 'config' should be parsed as case-insensitive
