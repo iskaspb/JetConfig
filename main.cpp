@@ -77,6 +77,45 @@ TEST(ConfigSource, ErrorColonConfigSource)
         "Invalid colon in element ':i1' in config source 's1.xml'. Expected format 'appName:instanceName'");
 }
 
+TEST(ConfigSource, CombineColonConfigSource1)
+{
+    const jet::ConfigSource source("<config><app:i1 attr='value'/><app:i2 attr2='value2'/></config>");
+    cout << source.toString() << endl;
+    EXPECT_EQ(
+        "<config>\n"
+        "  <app>\n"
+        "    <instance>\n"
+        "      <i1>\n"
+        "        <attr>value</attr>\n"
+        "      </i1>\n"
+        "      <i2>\n"
+        "        <attr2>value2</attr2>\n"
+        "      </i2>\n"
+        "    </instance>\n"
+        "  </app>\n"
+        "</config>\n",
+        source.toString());
+}
+
+TEST(ConfigSource, CombineColonConfigSource2)
+{
+    const jet::ConfigSource source("<config><app attr='value' attr1='value1'/><app:i2 attr1='value11' attr2='value2'/></config>");
+    EXPECT_EQ(
+        "<config>\n"
+        "  <app>\n"
+        "    <attr>value</attr>\n"
+        "    <attr1>value1</attr1>\n"
+        "    <instance>\n"
+        "      <i2>\n"
+        "        <attr1>value11</attr1>\n"
+        "        <attr2>value2</attr2>\n"
+        "      </i2>\n"
+        "    </instance>\n"
+        "  </app>\n"
+        "</config>\n",
+        source.toString());
+}
+
 TEST(ConfigSource, ComplexConfigSource)
 {
     const jet::ConfigSource source("<config attr1='value1' attr2=\"value2\"><attr3 attr4='value4'><attr5>value5</attr5></attr3></config>");

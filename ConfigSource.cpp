@@ -14,6 +14,11 @@
 #include <boost/format.hpp>
 
 namespace PT = boost::property_tree;
+typedef PT::ptree::value_type ValueType;
+typedef PT::ptree::iterator Iter;
+typedef PT::ptree::assoc_iterator AssocIter;
+typedef PT::ptree Tree;
+typedef PT::path Path;
 
 namespace jet
 {
@@ -70,20 +75,20 @@ std::string ConfigSource::Impl::toString(const bool pretty) const
     return strm.str();
 }
 
-void ConfigSource::Impl::normalizeXmlTree(PT::ptree& rawTree)
+void ConfigSource::Impl::normalizeXmlTree(Tree& rawTree)
 {
     if (rawTree.empty())
         throw ConfigSource(str(
             boost::format("Config source '%1%' is empty") % name()));
-    PT::ptree::value_type& child(rawTree.front());
+    Tree::value_type& child(rawTree.front());
     
     normalizeXmlTreeImpl(child.first, child.second);
 }
 
-void ConfigSource::Impl::normalizeXmlTreeImpl(const PT::path& currentPath, PT::ptree& rawTree)
+void ConfigSource::Impl::normalizeXmlTreeImpl(const Path& currentPath, Tree& rawTree)
 {
-    const PT::ptree::iterator end(rawTree.end());
-    for(PT::ptree::iterator iter = rawTree.begin(); end != iter;)
+    const Iter end(rawTree.end());
+    for(Iter iter = rawTree.begin(); end != iter;)
     {
         if("<xmlattr>" == iter->first)
         {
@@ -92,42 +97,55 @@ void ConfigSource::Impl::normalizeXmlTreeImpl(const PT::path& currentPath, PT::p
         }
         else
         {
-            normalizeXmlTreeImpl(currentPath/PT::path(iter->first), iter->second);
+            normalizeXmlTreeImpl(currentPath/Path(iter->first), iter->second);
             ++iter;
         }
     }
 }
 
-void ConfigSource::Impl::normalizeColon(PT::ptree& root)
+void ConfigSource::Impl::normalizeColon(Tree& root)
 {
     //TODO: you can assume only one root node only for xml
     const std::string& rootName(root.front().first);
     if(boost::to_lower_copy(rootName) == SHARED_NODE_NAME)
         return;
     if(boost::to_lower_copy(rootName) != ROOT_NODE_NAME)
-        return normalizeColonImpl(root, root.begin());
-    
-    PT::ptree& configNode(root.front().second);
-    const PT::ptree::iterator end(configNode.end());
-    for(PT::ptree::iterator iter(configNode.begin());
-        end != iter;
-        ++iter)
     {
-        normalizeColonImpl(configNode, iter);
+        normalizeColonImpl(root, root.begin());
+        return;
+    }
+    
+    Tree& configNode(root.front().second);
+    const Iter end(configNode.end());
+    for(Iter iter(configNode.begin()); end != iter;)
+    {
+        iter = normalizeColonImpl(configNode, iter);
     }
 }
 
-void ConfigSource::Impl::normalizeColonImpl(
-    PT::ptree& parent,
-    const PT::ptree::iterator& childIter)
+namespace
 {
-    typedef PT::ptree::value_type ValueType;
-    typedef PT::ptree::iterator Iter;
-    
+inline Iter findOrInsertChild(Tree& parent, Iter insertPosition, const std::string& key)
+{
+    const AssocIter assocIter = parent.find(key);
+    if(parent.not_found() != assocIter)
+        return parent.to_iterator(assocIter);
+    return parent.insert(insertPosition, ValueType(key, Tree()));
+}
+}//anonymous namespace
+
+Iter ConfigSource::Impl::normalizeColonImpl(
+    Tree& parent,
+    const Iter& childIter)
+{
     const std::string& childName(childIter->first);
     const size_t pos = childName.find(':');
     if(std::string::npos == pos)
-        return;
+    {
+        Iter nextIter(childIter);
+        std::advance(nextIter, 1);
+        return nextIter;
+    }
     const std::string appName(childName.substr(0, pos));
     const std::string instanceName(childName.substr(pos + 1));
     if(appName.empty() || instanceName.empty())
@@ -135,46 +153,47 @@ void ConfigSource::Impl::normalizeColonImpl(
             boost::format("Invalid colon in element '%1%' in config source '%2%'. Expected format 'appName:instanceName'") %
                 childName %
                 name()));
-    const Iter newChildIter = parent.insert(childIter, ValueType(appName, PT::ptree()));
-    const Iter grandChildIter = newChildIter->second.push_back(ValueType(INSTANCE_NODE_NAME, PT::ptree()));
-    const Iter grandGrandChildIter = grandChildIter->second.push_back(ValueType(instanceName, PT::ptree()));
+    const Iter newChildIter = findOrInsertChild(parent, childIter, appName);
+    const Iter grandChildIter = findOrInsertChild(newChildIter->second, newChildIter->second.end(), INSTANCE_NODE_NAME);
+    const Iter grandGrandChildIter = findOrInsertChild(grandChildIter->second, grandChildIter->second.end(), instanceName);
     childIter->second.swap(grandGrandChildIter->second);
-    parent.erase(childIter);
+    
+    return parent.erase(childIter);
 }
 
-void ConfigSource::Impl::copyUniqueChildren(const PT::path& currentPath, const PT::ptree& from, PT::ptree& to) const
+void ConfigSource::Impl::copyUniqueChildren(const Path& currentPath, const Tree& from, Tree& to) const
 {
-    BOOST_REVERSE_FOREACH(const PT::ptree::value_type& node, from)
+    BOOST_REVERSE_FOREACH(const Tree::value_type& node, from)
     {
         if(from.count(node.first) > 1)
             throw ConfigError(str(
                 boost::format("Duplicate definition of attribute '%1%' in config '%2%'") %
-                    (currentPath/PT::path(node.first)).dump() %
+                    (currentPath/Path(node.first)).dump() %
                     name()));
         to.push_front(node);
     }
 }
 
-void ConfigSource::Impl::validateTree(const PT::ptree& tree) const
+void ConfigSource::Impl::validateTree(const Tree& tree) const
 {
     if (tree.empty())
         throw ConfigSource(str(
             boost::format("Config source '%1%' is empty") % name()));
-    const PT::ptree::value_type& child(tree.front());
+    const Tree::value_type& child(tree.front());
     
     validateTreeImpl(child.first, child.second);
 }
 
-void ConfigSource::Impl::validateTreeImpl(const PT::path& currentPath, const PT::ptree& tree) const
+void ConfigSource::Impl::validateTreeImpl(const Path& currentPath, const Tree& tree) const
 {
     if(!tree.empty() && !tree.data().empty())
         throw ConfigError(str(
             boost::format("Invalid element '%1%' in config '%2%' contains both value and child attributes") %
             currentPath.dump() %
             name()));
-    BOOST_FOREACH(const PT::ptree::value_type& node, tree)
+    BOOST_FOREACH(const Tree::value_type& node, tree)
     {
-        const PT::path nodePath(currentPath/PT::path(node.first));
+        const Path nodePath(currentPath/Path(node.first));
         validateTreeImpl(nodePath, node.second);
     }
 }

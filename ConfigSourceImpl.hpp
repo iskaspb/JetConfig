@@ -33,7 +33,7 @@ private:
         const boost::property_tree::path& currentPath,
         boost::property_tree::ptree& rawTree);
     void normalizeColon(boost::property_tree::ptree& rawTree);
-    void normalizeColonImpl(
+    boost::property_tree::ptree::iterator normalizeColonImpl(
         boost::property_tree::ptree& parent,
         const boost::property_tree::ptree::iterator& child);
     void copyUniqueChildren(
