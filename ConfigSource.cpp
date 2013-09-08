@@ -28,48 +28,102 @@ namespace jet
 namespace
 {
 
+inline std::string pruneString(const std::string& data, size_t maxSize = 10)
+{
+    if(data.size() > maxSize)
+    {
+        if(maxSize < 6)
+            return data.substr(0, maxSize);
+        else
+            return data.substr(0, maxSize - 3) + "...";
+    }
+    return data;
+}
+
 class Validator: boost::noncopyable
 {
 public:
     Validator(const std::string& sourceName, const Tree& root):
-        sourceName_(sourceName), root_(root) {}
+        sourceName_(sourceName), root_(root)
+    {
+        assert(root_.front().first == ROOT_NODE_NAME);
+    }
     void checkTreeDoesNotHaveDataAndAttributeNodes() const
     {
-        const Tree::value_type& child(root_.front());
+        const Tree::value_type& config(root_.front());
         
-        checkNodeDoesNotHaveDataAndAttribute(child.first, child.second);
+        checkNodeDoesNotHaveDataAndAttribute(config.first, config.second);
     }
-    void checkNonEmptyTree() const
+    void checkNoDataInConfigNode() const
     {
-        if (root_.empty())
-            throw ConfigSource(str(
-                boost::format("Config source '%1%' is empty") % sourceName_));
-    }
-    void checkSingleRootTree() const
-    {
-        if(root_.size() > 1)
-            throw ConfigSource(str(
-                boost::format("Invalid config source '%1%'. Only one configuration root element is allowed") %
+        const Tree::value_type& config(root_.front());
+        if(!config.second.data().empty())
+            throw ConfigError(str(
+                boost::format("Invalid data node '%1%' under '" ROOT_NODE_NAME "' node in config source '%2%'") %
+                pruneString(config.second.data()) %
                 sourceName_));
+    }
+    void checkNoDataInSharedNode() const
+    {
+        const Tree::value_type& config(root_.front());
+        const CAssocIter sharedIter = config.second.find(SHARED_NODE_NAME);
+        if(config.second.not_found() == sharedIter)
+            return;
+        if(!sharedIter->second.data().empty())
+            throw ConfigError(str(
+                boost::format("Invalid data node '%1%' under '" SHARED_NODE_NAME "' node in config source '%2%'") %
+                pruneString(sharedIter->second.data()) %
+                sourceName_));
+    }
+    void checkNoDataInAppAndInstanceNode() const
+    {
+        const Tree::value_type& config(root_.front());
+        BOOST_FOREACH(const Tree::value_type& appNode, config.second)
+        {
+            if(SHARED_NODE_NAME == appNode.first)
+                continue;
+            if(!appNode.second.data().empty())
+                throw ConfigError(str(
+                    boost::format("Invalid data node '%1%' under '%2%' node in config source '%3%'") %
+                    pruneString(appNode.second.data()) %
+                    appNode.first %
+                    sourceName_));
+            const CAssocIter instanceIter = appNode.second.find(INSTANCE_NODE_NAME);
+            if(appNode.second.not_found() == instanceIter)
+                continue;
+            BOOST_FOREACH(const Tree::value_type& instanceNode, instanceIter->second)
+            {
+                if(!instanceNode.second.data().empty())
+                {
+                    std::string instanceName(appNode.first);
+                    instanceName += INSTANCE_DELIMITER_CHAR;
+                    instanceName += instanceNode.first;
+                    throw ConfigError(str(
+                        boost::format("Invalid data node '%1%' under '%2%' node in config source '%3%'") %
+                        pruneString(instanceNode.second.data()) %
+                        instanceName %
+                        sourceName_));
+                }
+            }
+        }
     }
     void checkNoSharedNodeDuplicates() const
     {
-        const Tree::value_type& child(root_.front());
-        if(child.first != ROOT_NODE_NAME)
-            return;
-        if(child.second.count(SHARED_NODE_NAME) > 1)
+        const Tree::value_type& config(root_.front());
+        if(config.second.count(SHARED_NODE_NAME) > 1)
             throw ConfigError(str(
                 boost::format("Duplicate shared node in config source '%1%'") % sourceName_));
-            
     }
     void checkNoSharedSubnodeDuplicates() const
     {
-        const Tree* sharedNode = findSharedNode(root_);
-        if(!sharedNode)
+        const Tree::value_type& config(root_.front());
+        const CAssocIter sharedIter = config.second.find(SHARED_NODE_NAME);
+        if(config.second.not_found() == sharedIter)
             return;
-        BOOST_FOREACH(const Tree::value_type& sharedChild, *sharedNode)
+
+        BOOST_FOREACH(const Tree::value_type& sharedChild, sharedIter->second)
         {
-            if(sharedNode->count(sharedChild.first) > 1)
+            if(sharedIter->second.count(sharedChild.first) > 1)
                 throw ConfigError(str(
                     boost::format("Duplicate shared node '%1%' in config source '%2%'") %
                     sharedChild.first %
@@ -78,38 +132,30 @@ public:
     }
     void checkNoAppNodeDuplicates() const
     {
-        const Tree::value_type& child(root_.front());
-        if(child.first != ROOT_NODE_NAME)
-            return;
-        BOOST_FOREACH(const Tree::value_type& grandChild, child.second)
+        const Tree::value_type& config(root_.front());
+        BOOST_FOREACH(const Tree::value_type& node, config.second)
         {
-            if(child.second.count(grandChild.first) > 1)
+            if(config.second.count(node.first) > 1)
                 throw ConfigError(str(
                     boost::format("Duplicate node '%1%' in config source '%2%'") %
-                    grandChild.first %
+                    node.first %
                     sourceName_));
         }
     }
     void checkNoInstanceNodeDuplicates() const
     {
-        const Tree::value_type& child(root_.front());
-        if(child.first != ROOT_NODE_NAME)
-            return checkNoInstanceNodeDuplicatesImpl(child.first, child.second);
-
-        BOOST_FOREACH(const Tree::value_type& grandChild, child.second)
+        const Tree::value_type& config(root_.front());
+        BOOST_FOREACH(const Tree::value_type& node, config.second)
         {
-            checkNoInstanceNodeDuplicatesImpl(grandChild.first, grandChild.second);
+            checkNoInstanceNodeDuplicatesImpl(node.first, node.second);
         }
     }
     void checkNoInstanceSubnodeDuplicates() const
     {
-        const Tree::value_type& child(root_.front());
-        if(child.first != ROOT_NODE_NAME)
-            return checkNoInstanceSubnodeDuplicatesImpl(child.first, child.second);
-
-        BOOST_FOREACH(const Tree::value_type& grandChild, child.second)
+        const Tree::value_type& config(root_.front());
+        BOOST_FOREACH(const Tree::value_type& node, config.second)
         {
-            checkNoInstanceSubnodeDuplicatesImpl(grandChild.first, grandChild.second);
+            checkNoInstanceSubnodeDuplicatesImpl(node.first, node.second);
         }
     }
 private:
@@ -125,19 +171,6 @@ private:
             const Path nodePath(currentPath/Path(node.first));
             checkNodeDoesNotHaveDataAndAttribute(nodePath, node.second);
         }
-    }
-    const Tree* findSharedNode(const Tree& root) const
-    {
-        const Tree::value_type& child(root.front());
-        if(child.first == SHARED_NODE_NAME)
-            return &child.second;
-        if(child.first == ROOT_NODE_NAME)
-        {
-            const CAssocIter iter = child.second.find(SHARED_NODE_NAME);
-            if(child.second.not_found() != iter)
-                return &iter->second;
-        }
-        return 0;
     }
     void checkNoInstanceNodeDuplicatesImpl(const std::string& appName, const Tree& appNode) const
     {
@@ -187,7 +220,7 @@ ConfigSource::Impl::Impl(
     {
         case ConfigSource::xml:
             PT::read_xml(input, root_, PT::xml_parser::trim_whitespace);
-            normalizeXmlTree(root_);
+            normalizeXmlAttributes(root_);
             break;
         default:
             ConfigError(
@@ -208,7 +241,7 @@ ConfigSource::Impl::Impl(
     {
         case ConfigSource::xml:
             PT::read_xml(filename, root_, PT::xml_parser::trim_whitespace);
-            normalizeXmlTree(root_);
+            normalizeXmlAttributes(root_);
             break;
         default:
             ConfigError(
@@ -221,14 +254,18 @@ ConfigSource::Impl::Impl(
 
 void ConfigSource::Impl::processRawTree(ConfigSource::FileNameStyle fileNameStyle)
 {
-    const Validator validator(name(), root_);
-    validator.checkNonEmptyTree();
-    validator.checkSingleRootTree();
-    
+    if (root_.empty())
+        throw ConfigSource(str(
+            boost::format("Config source '%1%' is empty") % name()));
+
+    normalizeRootNode(root_);
     normalizeKeywords(root_, fileNameStyle);
     normalizeInstanceDelimiter(root_);
     
-    validator.checkNonEmptyTree();
+    const Validator validator(name(), root_);
+    validator.checkNoDataInConfigNode();
+    validator.checkNoDataInSharedNode();
+    validator.checkNoDataInAppAndInstanceNode();
     validator.checkTreeDoesNotHaveDataAndAttributeNodes();
     validator.checkNoSharedNodeDuplicates();
     validator.checkNoSharedSubnodeDuplicates();
@@ -252,17 +289,17 @@ std::string ConfigSource::Impl::toString(bool pretty) const
     return strm.str();
 }
 
-void ConfigSource::Impl::normalizeXmlTree(Tree& rawTree) const
+void ConfigSource::Impl::normalizeXmlAttributes(Tree& rawTree) const
 {
     if (rawTree.empty())
         throw ConfigSource(str(
             boost::format("Config source '%1%' is empty") % name()));
     Tree::value_type& child(rawTree.front());
     
-    normalizeXmlTreeImpl(child.first, child.second);
+    normalizeXmlAttributesImpl(child.first, child.second);
 }
 
-void ConfigSource::Impl::normalizeXmlTreeImpl(const Path& currentPath, Tree& rawTree) const
+void ConfigSource::Impl::normalizeXmlAttributesImpl(const Path& currentPath, Tree& rawTree) const
 {
     const Iter end(rawTree.end());
     for(Iter iter = rawTree.begin(); end != iter;)
@@ -274,10 +311,28 @@ void ConfigSource::Impl::normalizeXmlTreeImpl(const Path& currentPath, Tree& raw
         }
         else
         {
-            normalizeXmlTreeImpl(currentPath/Path(iter->first), iter->second);
+            normalizeXmlAttributesImpl(currentPath/Path(iter->first), iter->second);
             ++iter;
         }
     }
+}
+
+void ConfigSource::Impl::normalizeRootNode(Tree& rawTree) const
+{
+    if(rawTree.size() == 1 && ROOT_NODE_NAME == boost::to_lower_copy(rawTree.front().first))
+        return;//...this tree is already normalized
+    BOOST_FOREACH(const Tree::value_type& child, rawTree)
+    {
+        const std::string& childName = child.first;
+        if(ROOT_NODE_NAME == boost::to_lower_copy(childName))
+            throw ConfigError(str(
+                boost::format("Invalid config source '%1%'. '" ROOT_NODE_NAME "' must be root node") %
+                name()));
+    }
+    Tree newTree;
+    newTree.push_back(Tree::value_type(ROOT_NODE_NAME, Tree()));
+    newTree.front().second.swap(rawTree);
+    newTree.swap(rawTree);
 }
 
 namespace
@@ -295,19 +350,13 @@ void ConfigSource::Impl::normalizeKeywords(
     Tree& root, ConfigSource::FileNameStyle fileNameStyle) const
 {
     const std::string& rootName(root.front().first);
-    if(ROOT_NODE_NAME == boost::to_lower_copy(rootName))
+    assert(ROOT_NODE_NAME == boost::to_lower_copy(rootName));
+    if(ROOT_NODE_NAME != rootName)
+        renameNode(root, root.begin(), ROOT_NODE_NAME);
+    Tree& configNode = root.front().second;
+    for(Iter iter = configNode.begin(); configNode.end() != iter; ++iter)
     {
-        if(ROOT_NODE_NAME != rootName)
-            renameNode(root, root.begin(), ROOT_NODE_NAME);
-        Tree& configNode = root.front().second;
-        for(Iter iter = configNode.begin(); configNode.end() != iter; ++iter)
-        {
-            iter = normalizeKeywordsImpl(configNode, iter, fileNameStyle);
-        }
-    }
-    else
-    {
-        normalizeKeywordsImpl(root, root.begin(), fileNameStyle);
+        iter = normalizeKeywordsImpl(configNode, iter, fileNameStyle);
     }
 }
 
@@ -343,20 +392,11 @@ Iter ConfigSource::Impl::normalizeKeywordsImpl(
 
 void ConfigSource::Impl::normalizeInstanceDelimiter(Tree& root) const
 {
-    const std::string& rootName(root.front().first);
-    if(rootName == SHARED_NODE_NAME)
-        return;
-    if(rootName != ROOT_NODE_NAME)
+    Tree& config(root.front().second);
+    const Iter end(config.end());
+    for(Iter iter(config.begin()); end != iter;)
     {
-        normalizeInstanceDelimiterImpl(root, root.begin());
-        return;
-    }
-    
-    Tree& configNode(root.front().second);
-    const Iter end(configNode.end());
-    for(Iter iter(configNode.begin()); end != iter;)
-    {
-        iter = normalizeInstanceDelimiterImpl(configNode, iter);
+        iter = normalizeInstanceDelimiterImpl(config, iter);
     }
 }
 
@@ -441,12 +481,10 @@ ConfigSource::ConfigSource(
 }
 catch(const PT::ptree_error& ex)
 {
-    const std::string msg(
-        "Couldn't parse config '" +
-        name +
-        "'. Reason: " +
-        ex.what());
-    throw ConfigError(msg);
+    throw ConfigError(str(
+        boost::format("Couldn't parse config '%1%'. Reason: %2%") %
+        name %
+        ex.what()));
 }
 
 ConfigSource::ConfigSource(

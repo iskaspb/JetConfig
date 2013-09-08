@@ -33,87 +33,68 @@ public:
     Impl(const std::string& appName, const std::string& instanceName):
         locked_(false),
         appName_(appName),
-        instanceName_(instanceName)
+        instanceName_(instanceName),
+        config_(0)
     {
         if(appName_.empty())
             throw ConfigError("Empty config name");
+        root_.push_back(PT::ptree::value_type(ROOT_NODE_NAME, PT::ptree()));
+        config_ = &root_.front().second;
         if(!instanceName_.empty())
-            config_.push_back(PT::ptree::value_type(instanceName_, PT::ptree()));
-        config_.push_back(PT::ptree::value_type(appName_, PT::ptree()));
-        config_.push_back(PT::ptree::value_type(SHARED_NODE_NAME, PT::ptree()));
+            config_->push_back(PT::ptree::value_type(instanceName_, PT::ptree()));
+        config_->push_back(PT::ptree::value_type(appName_, PT::ptree()));
+        config_->push_back(PT::ptree::value_type(SHARED_NODE_NAME, PT::ptree()));
     }
     void merge(const ConfigSource::Impl& source)
     {
         if(locked_)
             throw ConfigError(str(boost::format("Config '%1%' is locked") % name()));
         const PT::ptree& root = source.getRoot();
-        const std::string& otherConfigName(root.back().first);
-        const PT::ptree& otherConfig(root.back().second);
+        const std::string& otherConfigName(root.front().first);
+        const PT::ptree& otherConfig(root.front().second);
         
-        if(otherConfigName == ROOT_NODE_NAME)
-        {
-            validateNoData(otherConfig, source.name());
-            {//...merge shared attributes (if found)
-                const boost::optional<const PT::ptree&> sharedNode(
-                    otherConfig.get_child_optional(SHARED_NODE_NAME));
-                if(sharedNode)
-                    mergeShared(*sharedNode, source.name());
-            }
-            if(!instanceName_.empty())
-            {//...merge instance
-                const PT::ptree::const_assoc_iterator instanceNode(
-                    otherConfig.find(name()));
-                if(instanceNode != otherConfig.not_found())
-                {
-                    //...validate for duplicate instance defintion
-                    const boost::optional<const PT::ptree&> appNode(
-                        otherConfig.get_child_optional(appName()));
-                    if(appNode)
-                    {
-                        const boost::optional<const PT::ptree&> dupInstanceNode(
-                            appNode->get_child_optional(
-                                INSTANCE_NODE_NAME "." + instanceName_));
-                        if(dupInstanceNode)
-                            throw ConfigError(str(
-                                boost::format("Config source '%1%' has duplicate definition of config '%2%'") %
-                                source.name() %
-                                name()));
-                    }
-                    mergeInstance(instanceNode->second, source.name());
-                    return;
-                }
-            }
-            {//...merge application config without instance
-                const boost::optional<const PT::ptree&> selfNode(
+        assert(ROOT_NODE_NAME == otherConfigName);
+
+        {//...merge shared attributes (if found)
+            const boost::optional<const PT::ptree&> sharedNode(
+                otherConfig.get_child_optional(SHARED_NODE_NAME));
+            if(sharedNode)
+                mergeShared(*sharedNode, source.name());
+        }
+        if(!instanceName_.empty())
+        {//...merge instance
+            const PT::ptree::const_assoc_iterator instanceNode(
+                otherConfig.find(name()));
+            if(instanceNode != otherConfig.not_found())
+            {
+                //...validate for duplicate instance defintion
+                const boost::optional<const PT::ptree&> appNode(
                     otherConfig.get_child_optional(appName()));
-                if(selfNode)
-                    mergeSelf(*selfNode, source.name());
+                if(appNode)
+                {
+                    const boost::optional<const PT::ptree&> dupInstanceNode(
+                        appNode->get_child_optional(
+                            INSTANCE_NODE_NAME "." + instanceName_));
+                    if(dupInstanceNode)
+                        throw ConfigError(str(
+                            boost::format("Config source '%1%' has duplicate definition of config '%2%'") %
+                            source.name() %
+                            name()));
+                }
+                mergeInstance(instanceNode->second, source.name());
+                return;
             }
         }
-        else if(otherConfigName == SHARED_NODE_NAME)
-        {
-            mergeShared(otherConfig, source.name());
-        }
-        else if(appName() == otherConfigName)
-        {
-            mergeSelf(otherConfig, source.name());
-        }
-        else if(name() == otherConfigName)
-        {
-            mergeInstance(otherConfig, source.name());
-        }
-        else
-        {
-            throw ConfigError(str(
-                boost::format("Can't merge source '%1%' into config '%2%' because it has different config name '%3%'") %
-                    source.name() %
-                    name() %
-                    otherConfigName));
+        {//...merge application config without instance
+            const boost::optional<const PT::ptree&> selfNode(
+                otherConfig.get_child_optional(appName()));
+            if(selfNode)
+                mergeSelf(*selfNode, source.name());
         }
     }
     boost::optional<std::string> get(const std::string& attrName) const
     {
-        BOOST_FOREACH(const PT::ptree::value_type& node, config_)
+        BOOST_FOREACH(const PT::ptree::value_type& node, *config_)
         {
             const boost::optional<const PT::ptree&> attrNode(
                 node.second.get_child_optional(attrName));
@@ -137,15 +118,15 @@ public:
     void lock() { locked_ = true; }
     void print(std::ostream& os) const
     {
-        PT::write_xml(os, config_, PT::xml_writer_make_settings(' ', 2));
+        PT::write_xml(os, root_, PT::xml_writer_make_settings(' ', 2));
     }
 private:
     void mergeShared(const PT::ptree& from, const std::string& sourceName)
     {
-        validateNoData(from, sourceName);
+        //validateNoData(from, sourceName);
         validateShared(from, sourceName);
-        assert(config_.back().first == SHARED_NODE_NAME);
-        PT::ptree& shared(config_.back().second);
+        assert(config_->back().first == SHARED_NODE_NAME);
+        PT::ptree& shared(config_->back().second);
         merge(shared, from);
     }
     void validateShared(const PT::ptree& from, const std::string& sourceName)
@@ -166,18 +147,17 @@ private:
     }
     void mergeSelf(const PT::ptree& from, const std::string& sourceName)
     {
-        validateNoData(from, sourceName);
         if(instanceName_.empty())
         {
-            assert(config_.size() == 2);
-            assert(config_.front().first == name());
-            PT::ptree& self(config_.front().second);
+            assert(config_->size() == 2);
+            assert(config_->front().first == name());
+            PT::ptree& self(config_->front().second);
             merge(self, from);
         }
         else
         {
-            assert(config_.size() == 3);
-            PT::ptree::iterator iter(config_.begin());
+            assert(config_->size() == 3);
+            PT::ptree::iterator iter(config_->begin());
             ++iter;
             assert(iter->first == appName());
             PT::ptree& self(iter->second);
@@ -191,11 +171,10 @@ private:
     }
     void mergeInstance(const PT::ptree& from, const std::string& sourceName)
     {
-        validateNoData(from, sourceName);
         assert(!instanceName_.empty());
-        assert(config_.size() == 3);
-        assert(config_.front().first == instanceName());
-        PT::ptree& instance(config_.front().second);
+        assert(config_->size() == 3);
+        assert(config_->front().first == instanceName());
+        PT::ptree& instance(config_->front().second);
         merge(instance, from);
     }
     static void merge(PT::ptree& to, const PT::ptree& from)
@@ -219,19 +198,11 @@ private:
             }
         }
     }
-    void validateNoData(const PT::ptree& tree, const std::string& sourceName)
-    {
-        if(!tree.data().empty())
-            throw ConfigError(str(
-                boost::format("Invalid data node '%1%' in config '%2%' taken from config source '%3%'") %
-                tree.data() %
-                name() %
-                sourceName));
-    }
     //...
     bool locked_;
     std::string appName_, instanceName_;//...name() := appName_ [':' instanceName_]
-    PT::ptree config_;
+    PT::ptree root_;
+    PT::ptree* config_;
 };
 
 Config::Config(const std::string& appName, const std::string& instanceName):

@@ -38,10 +38,11 @@ public:
     const boost::property_tree::ptree& getRoot() const { return root_; }
 private:
     void processRawTree(ConfigSource::FileNameStyle fileNameStyle);
-    void normalizeXmlTree(boost::property_tree::ptree& rawTree) const;
-    void normalizeXmlTreeImpl(
+    void normalizeXmlAttributes(boost::property_tree::ptree& rawTree) const;
+    void normalizeXmlAttributesImpl(
         const boost::property_tree::path& currentPath,
         boost::property_tree::ptree& rawTree) const;
+    void normalizeRootNode(boost::property_tree::ptree& rawTree) const;
     void normalizeInstanceDelimiter(boost::property_tree::ptree& rawTree) const;
     boost::property_tree::ptree::iterator normalizeInstanceDelimiterImpl(
         boost::property_tree::ptree& parent,

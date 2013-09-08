@@ -15,8 +15,10 @@ using std::endl;
 
 TEST(ConfigSource, SimpleConfigSource)
 {
-    const jet::ConfigSource source("<config> <attr> value</attr></config>");
-    EXPECT_EQ("<config><attr>value</attr></config>", source.toString(jet::ConfigSource::OneLine));
+    const jet::ConfigSource source("<app> <attr> value</attr></app>");
+    EXPECT_EQ(
+        "<config><app><attr>value</attr></app></config>",
+        source.toString(jet::ConfigSource::OneLine));
 }
 
 TEST(ConfigSource, EmptyConfigSource)
@@ -39,20 +41,24 @@ TEST(ConfigSource, InvalidConfigSource)
 
 TEST(ConfigSource, SimpleConfigSourcePrettyPrint)
 {
-    const jet::ConfigSource source("<config><attr>value  </attr></config>");
+    const jet::ConfigSource source("<app><attr>value  </attr></app>");
     EXPECT_EQ(
         "<config>\n"
-        "  <attr>value</attr>\n"
+        "  <app>\n"
+        "    <attr>value</attr>\n"
+        "  </app>\n"
         "</config>\n",
         source.toString());
 }
 
 TEST(ConfigSource, AttrConfigSource)
 {
-    const jet::ConfigSource source("<config attr='value'>   </config>");
+    const jet::ConfigSource source("<app attr='value'/>");
     EXPECT_EQ(
         "<config>\n"
-        "  <attr>value</attr>\n"
+        "  <app>\n"
+        "    <attr>value</attr>\n"
+        "  </app>\n"
         "</config>\n",
         source.toString());
 }
@@ -131,28 +137,60 @@ TEST(ConfigSource, CombineAbbriviatedInstanceConfigSource2)
 
 TEST(ConfigSource, ComplexConfigSource)
 {
-    const jet::ConfigSource source("<config attr1='value1' attr2=\"value2\"><attr3 attr4='value4'><attr5>value5</attr5></attr3></config>");
+    const jet::ConfigSource source("<app attr1='value1' attr2=\"value2\"><attr3 attr4='value4'><attr5>value5</attr5></attr3></app>");
     EXPECT_EQ(
         "<config>\n"
-        "  <attr1>value1</attr1>\n"
-        "  <attr2>value2</attr2>\n"
-        "  <attr3>\n"
-        "    <attr4>value4</attr4>\n"
-        "    <attr5>value5</attr5>\n"
-        "  </attr3>\n"
+        "  <app>\n"
+        "    <attr1>value1</attr1>\n"
+        "    <attr2>value2</attr2>\n"
+        "    <attr3>\n"
+        "      <attr4>value4</attr4>\n"
+        "      <attr5>value5</attr5>\n"
+        "    </attr3>\n"
+        "  </app>\n"
         "</config>\n",
         source.toString());
+}
+
+TEST(ConfigSource, SystemConfigInvalidData)
+{
+    CONFIG_ERROR(
+        jet::ConfigSource("<config>12345678901</config>", "s1.xml"),
+        "Invalid data node '1234567...' under 'config' node in config source 's1.xml'");
+}
+
+TEST(ConfigSource, AppConfigInvalidData)
+{
+    CONFIG_ERROR(
+        jet::ConfigSource("<config><appName>data</appName></config>", "s1.xml"),
+        "Invalid data node 'data' under 'appName' node in config source 's1.xml'");
+}
+
+TEST(ConfigSource, SharedConfigInvalidData)
+{
+    CONFIG_ERROR(
+        jet::ConfigSource("<config><shared>data123</shared></config>", "s1.xml"),
+        "Invalid data node 'data123' under 'shared' node in config source 's1.xml'");
+}
+
+TEST(ConfigSource, InstanceConfigInvalidData)
+{
+    CONFIG_ERROR(
+        jet::ConfigSource("<config><appName:i1>data</appName:i1></config>", "s1.xml"),
+        "Invalid data node 'data' under 'appName:i1' node in config source 's1.xml'");
 }
 
 TEST(ConfigSource, InconsistentAttributeDefinitionConfigSource)
 {
     CONFIG_ERROR(
         jet::ConfigSource(
-            "<config attr='value1'>\n"
-            "   data\n"
-            "</config>\n",
+            "<app>"
+            "   <env attr='value1'>"
+            "       data"
+            "   </env>"
+            "</app>",
             "InconsistentAttributeDefinitionConfigSource"),
-        "Invalid element 'config' in config source 'InconsistentAttributeDefinitionConfigSource' contains both value and child attributes");
+        "Invalid element 'config.app.env' in config source 'InconsistentAttributeDefinitionConfigSource' contains both value and child attributes");
 }
 
 TEST(ConfigSource, DuplicateAttrConfigSource)
@@ -252,12 +290,12 @@ TEST(ConfigSource, InvalidDuplicates)
         "Duplicate node 'appName:i1' in config source 's1.xml'");
 }
 
-TEST(Config, NormalizeKeywords)
+TEST(ConfigSource, NormalizeKeywords)
 {
     EXPECT_EQ(jet::ConfigSource("<Config/>").toString(), "<config/>\n");
     EXPECT_EQ(
         jet::ConfigSource("<Shared/>").toString(jet::ConfigSource::OneLine),
-        "<shared/>");
+        "<config><shared/></config>");
     EXPECT_EQ(
         jet::ConfigSource(
             "<config><Shared/></config>").toString(jet::ConfigSource::OneLine),
@@ -266,21 +304,23 @@ TEST(Config, NormalizeKeywords)
         jet::ConfigSource(
             "<app><Instance><i1/></Instance></app>"
             ).toString(jet::ConfigSource::OneLine),
-        "<app><instance><i1/></instance></app>");
+        "<config><app><instance><i1/></instance></app></config>");
     EXPECT_EQ(
         jet::ConfigSource(
             "<config><app><Instance><i1/></Instance></app></config>"
             ).toString(jet::ConfigSource::OneLine),
         "<config><app><instance><i1/></instance></app></config>");
-    EXPECT_EQ(jet::ConfigSource("<APP/>").toString(), "<APP/>\n");
+    EXPECT_EQ(
+        jet::ConfigSource("<APP/>").toString(jet::ConfigSource::OneLine),
+        "<config><APP/></config>");
     EXPECT_EQ(//...this is for Windows file name convention
         jet::ConfigSource(
             "<APP/>",
             "s1.xml",
             jet::ConfigSource::xml,
             jet::ConfigSource::CaseInsensitive
-            ).toString(),
-        "<app/>\n");
+            ).toString(jet::ConfigSource::OneLine),
+        "<config><app/></config>");
 }
 
 TEST(Config, SharedAttrConfigWithoutRootConfigElement)
@@ -303,13 +343,6 @@ TEST(Config, SharedAttrConfigWithoutRootConfigElement)
     EXPECT_EQ("13.2",    config.get<std::string>("libName.doubleAttr"));
     EXPECT_EQ(13.2,      config.get<double>("libName.doubleAttr"));
     EXPECT_EQ("value",   config.get("libName.subKey.attr"));
-}
-
-TEST(Config, InconsistentConfigName)
-{
-    const jet::ConfigSource source("<wrongConfigName><attr>value</attr></wrongConfigName>", "xmlSource");
-    CONFIG_ERROR(jet::Config("ApplicationName") << source << jet::lock,
-        "Can't merge source 'xmlSource' into config 'ApplicationName' because it has different config name 'wrongConfigName'");
 }
 
 TEST(Config, AttribConfigSourceMerge)
@@ -347,14 +380,6 @@ TEST(Config, SubtreeConfigSourceMerge)
     EXPECT_EQ("data",    config.get("attribs.subkey.attr"));
 }
 
-TEST(Config, UnmatchedNamesConfigSourceMerge)
-{
-    const jet::ConfigSource s1("<appName attr1='10' attr2='something'></appName>", "s1.xml");
-    const jet::ConfigSource s2("<anotherAppName attr2='20' attr3='value3'></appName>", "s2.xml");
-    CONFIG_ERROR(jet::Config("appName") << s1 << s2,
-        "Can't merge source 's2.xml' into config 'appName' because it has different config name 'anotherAppName'");
-}
-
 TEST(Config, AnyCaseSystemConfigName)
 {
     const jet::ConfigSource s1("<conFIG><appName attr='10'></appName></conFIG>", "s1.xml");
@@ -369,48 +394,6 @@ TEST(Config, InstanceConfigName)
     EXPECT_EQ("appName:i1", config.name());
     EXPECT_EQ("appName", config.appName());
     EXPECT_EQ("i1", config.instanceName());
-}
-
-TEST(Config, SystemConfigInvalidData)
-{
-    const jet::ConfigSource s1("<config>data</config>", "s1.xml");
-    CONFIG_ERROR(
-        jet::Config("appName") << s1,
-        "Invalid data node 'data' in config 'appName' taken from config source 's1.xml'");
-}
-
-TEST(Config, AppConfigInvalidData)
-{
-    const jet::ConfigSource s1("<config><appName>data</appName></config>", "s1.xml");
-    CONFIG_ERROR(
-        jet::Config("appName") << s1,
-        "Invalid data node 'data' in config 'appName' taken from config source 's1.xml'");
-}
-
-TEST(Config, SharedConfigInvalidData)
-{
-    const jet::ConfigSource s1("<config><shared>data</shared></config>", "s1.xml");
-    CONFIG_ERROR(
-        jet::Config("appName") << s1,
-        "Invalid data node 'data' in config 'appName' taken from config source 's1.xml'");
-}
-
-TEST(Config, InstanceConfigInvalidData1)
-{
-    const jet::ConfigSource s1("<config><appName:i1>data</appName:i1></config>", "s1.xml");
-    jet::Config config("appName", "i1");
-    CONFIG_ERROR(
-        config << s1 << jet::lock,
-        "Invalid data node 'data' in config 'appName:i1' taken from config source 's1.xml'");
-}
-
-TEST(Config, InstanceConfigInvalidData2)
-{
-    const jet::ConfigSource s3("<config><appName><instance><i1>data</i1></instance></appName></config>", "s3.xml");
-    jet::Config config("appName", "i1");
-    CONFIG_ERROR(
-        config << s3 << jet::lock,
-        "Invalid data node 'data' in config 'appName:i1' taken from config source 's3.xml'");
 }
 
 TEST(Config, LockConfig)
