@@ -235,7 +235,7 @@ void ConfigSource::Impl::processRawTree(ConfigSource::FileNameStyle fileNameStyl
     validator.ensureNoInstanceSubnodeDuplicates(root_);
 }
 
-std::string ConfigSource::Impl::toString(const bool pretty) const
+std::string ConfigSource::Impl::toString(bool pretty) const
 {
     std::stringstream strm;
     if(pretty)

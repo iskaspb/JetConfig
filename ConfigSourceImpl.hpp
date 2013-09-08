@@ -33,7 +33,7 @@ public:
         const std::string& filename,
         ConfigSource::Format format,
         ConfigSource::FileNameStyle fileNameStyle);
-    std::string toString(const bool pretty) const;
+    std::string toString(bool pretty) const;
     const std::string& name() const { return name_; }
     const boost::property_tree::ptree& getRoot() const { return root_; }
 private:

@@ -18,6 +18,7 @@ namespace jet
 {
 
 struct ConfigLock {};
+extern const ConfigLock lock;//...this is used to lock Config, that is to finish creation from ConfigSource. Efectively it makes Config immutable
 
 class Config
 {
@@ -31,40 +32,79 @@ public:
 
     Config& operator<<(const ConfigSource& source);
     void operator<<(ConfigLock);
-    std::string toString() const;//TODO: finish
+    friend std::ostream& operator<<(std::ostream& os, const Config& config);
 
     std::string name() const;
     const std::string& appName() const;
     const std::string& instanceName() const;
     
-    std::string get(const std::string& attrName) const;//TODO: get() without default value should raise exception
+    std::string get(const std::string& attrName) const;
     template<typename T>
-    T get(const std::string& attrName) const
-    {//TODO: translate bad_lexical_cast into ConfigError
-        return boost::lexical_cast<T>(get(attrName));
-    }
+    T get(const std::string& attrName) const;
+    
     boost::optional<std::string> getOptional(const std::string& attrName) const;
     template<typename T>
-    boost::optional<T> getOptional(const std::string& attrName) const
-    {//TODO: translate bad_lexical_cast into ConfigError
-        const boost::optional<std::string> value(getOptional(attrName));
-        if(value)
-            return boost::lexical_cast<T>(*value);
-        return boost::none;
-    }
-    std::string get(const std::string& attrName, const std::string& defaultValue);//TODO: finish
+    boost::optional<T> getOptional(const std::string& attrName) const;
+    
+    std::string get(const std::string& attrName, const std::string& defaultValue) const;
     template<typename T>
-    T get(const std::string& attrName, const T& defaultValue)
-    {
-        const std::string strDefaultValue(boost::lexical_cast<std::string>(defaultValue));//TODO: translate bad_lexical_cast into ConfigError
-        return boost::lexical_cast<T>(get(attrName, strDefaultValue));//TODO: translate bad_lexical_cast into ConfigError
-    }
+    T get(const std::string& attrName, const T& defaultValue) const;
 private:
+    void throwValueConversionError(const std::string& attrName, const std::string& value) const;
     class Impl;
     boost::shared_ptr<Impl> impl_;
 };
 
-extern const ConfigLock lock;
+template<typename T>
+inline T Config::get(const std::string& attrName) const
+{
+    const std::string value(get(attrName));
+    try
+    {
+        return boost::lexical_cast<T>(value);
+    }
+    catch(const boost::bad_lexical_cast&)
+    {
+        throwValueConversionError(attrName, value);
+        throw;
+    }
+}
+
+template<typename T>
+inline boost::optional<T> Config::getOptional(const std::string& attrName) const
+{
+    const boost::optional<std::string> value(getOptional(attrName));
+    if(!value)
+        return boost::none;
+    try
+    {
+        return boost::lexical_cast<T>(*value);
+    }
+    catch(const boost::bad_lexical_cast&)
+    {
+        throwValueConversionError(attrName, *value);
+        throw;
+    }
+}
+
+template<typename T>
+inline T Config::get(const std::string& attrName, const T& defaultValue) const
+{
+    boost::optional<std::string> value(getOptional(attrName));
+    if(!value)
+        return defaultValue;
+    try
+    {
+        return boost::lexical_cast<T>(*value);
+    }
+    catch(const boost::bad_lexical_cast&)
+    {
+        throwValueConversionError(attrName, *value);
+        throw;
+    }
+}
+
+extern std::ostream& operator<<(std::ostream& os, const Config& config);
 
 }//namespace jet
 

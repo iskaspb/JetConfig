@@ -453,9 +453,47 @@ TEST(Config, ProhibitedInstanceSubsectionInSharedSection)
         "Subsecion name 'instance' is prohibited in 'shared' section. Config source 's1.xml'");
 }
 
-//TODO: add optional getter and getter with default value
-//TODO: provide way to get sequence of parameters with the same name
+TEST(Config, Getters)
+{
+    const jet::ConfigSource s1(
+        "<app:1 str='value' int='10'/>",
+        "s1.xml");
+
+    jet::Config config("app", "1");
+    config << s1 << jet::lock;
+    
+    //...simple getter
+    EXPECT_EQ("value", config.get("str"));
+    EXPECT_EQ(10, config.get<int>("int"));
+    CONFIG_ERROR(
+        config.get("unknown"),
+        "Can't find property 'unknown' in config 'app:1'");
+    CONFIG_ERROR(
+        config.get<int>("str"),
+        "Can't convert value 'value' of a property 'str' in config 'app:1'");
+    
+    //...optional getter
+    EXPECT_EQ("value", *config.getOptional("str"));
+    EXPECT_EQ(10, *config.getOptional<int>("int"));
+    EXPECT_EQ(boost::none, config.getOptional("unknown"));
+    CONFIG_ERROR(
+        config.getOptional<int>("str"),
+        "Can't convert value 'value' of a property 'str' in config 'app:1'");
+    
+    //...default getter
+    EXPECT_EQ("value", config.get("str", "anotherValue"));
+    EXPECT_EQ(10, config.get("int", 12));
+    EXPECT_EQ("another value", config.get("unknown", "another value"));
+    CONFIG_ERROR(
+        config.get("str", 12),
+        "Can't convert value 'value' of a property 'str' in config 'app:1'");
+    
+}
+
 //TODO: add tests that merges sections of 'instance', <appConfig> and 'shared' in different combinations
 //TODO: add test for serialization of Config
+//TODO: add 'lock' optimization
+//TODO: Create <config> root element if ConfigSource doesn't have
+//TODO: provide way to get sequence of parameters with the same name
 //TODO: add command line config source
 //TODO: add environment config source

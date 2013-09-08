@@ -10,12 +10,12 @@
 #include "ConfigSourceImpl.hpp"
 #include "ConfigError.hpp"
 #include <boost/property_tree/exceptions.hpp>
+#include <boost/property_tree/xml_parser.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/foreach.hpp>
 #include <boost/format.hpp>
 #include <sstream>
 
-//#include <boost/property_tree/xml_parser.hpp>
 //#include <iostream>
 //using std::cout;
 //using std::endl;
@@ -32,7 +32,6 @@ class Config::Impl
 public:
     Impl(const std::string& appName, const std::string& instanceName):
         locked_(false),
-        //name_(instanceName.empty()? appName: (appName + ':' + instanceName)),
         appName_(appName),
         instanceName_(instanceName)
     {
@@ -112,7 +111,7 @@ public:
                     otherConfigName));
         }
     }
-    std::string get(const std::string& attrName) const
+    boost::optional<std::string> get(const std::string& attrName) const
     {
         BOOST_FOREACH(const PT::ptree::value_type& node, config_)
         {
@@ -121,14 +120,14 @@ public:
             if(attrNode)
                 return attrNode->get_value<std::string>();
         }
-        return std::string();
+        return boost::none;
     }
     std::string name() const
     {
         std::string res(appName_);
         if(!instanceName_.empty())
         {
-            res += ':';
+            res += INSTANCE_DELIMITER_CHAR;
             res += instanceName_;
         }
         return res;
@@ -136,6 +135,10 @@ public:
     const std::string& appName() const { return appName_; }
     const std::string& instanceName() const { return instanceName_; }
     void lock() { locked_ = true; }
+    void print(std::ostream& os) const
+    {
+        PT::write_xml(os, config_, PT::xml_writer_make_settings(' ', 2));
+    }
 private:
     void mergeShared(const PT::ptree& from, const std::string& sourceName)
     {
@@ -266,7 +269,26 @@ const std::string& Config::instanceName() const
 
 std::string Config::get(const std::string& attrName) const
 {
+    boost::optional<std::string> value(impl_->get(attrName));
+    if(value)
+        return *value;
+    throw ConfigError(str(
+        boost::format("Can't find property '%1%' in config '%2%'") %
+        attrName %
+        name()));
+}
+
+boost::optional<std::string> Config::getOptional(const std::string& attrName) const
+{
     return impl_->get(attrName);
+}
+
+std::string Config::get(const std::string& attrName, const std::string& defaultValue) const
+{
+    boost::optional<std::string> value(impl_->get(attrName));
+    if(value)
+        return *value;
+    return defaultValue;
 }
 
 Config& Config::operator<<(const ConfigSource& source)
@@ -278,6 +300,21 @@ Config& Config::operator<<(const ConfigSource& source)
 void Config::operator<<(ConfigLock)
 {
     impl_->lock();
+}
+
+void Config::throwValueConversionError(const std::string& attrName, const std::string& value) const
+{
+    throw ConfigError(str(
+        boost::format("Can't convert value '%1%' of a property '%2%' in config '%3%'") %
+        value %
+        attrName %
+        name()));
+}
+
+std::ostream& operator<<(std::ostream& os, const Config& config)
+{
+    config.impl_->print(os);
+    return os;
 }
 
 } //namespace jet
