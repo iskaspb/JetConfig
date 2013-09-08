@@ -473,10 +473,39 @@ TEST(Config, Getters)
     
 }
 
+TEST(Config, Serialize)
+{
+    const jet::ConfigSource s1(
+        "<app str='value1' int='10'/><app2 attr='value'/>",
+        "s1.xml");
+    const jet::ConfigSource s2(
+        "<app:1 str='value2' float='10.'/>",
+        "s2.xml");
+
+    jet::Config config("app", "1");
+    config << s1 << s2;
+
+    const char* expectedResult =
+"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n\
+<config>\n\
+  <1>\n\
+    <str>value2</str>\n\
+    <float>10.</float>\n\
+  </1>\n\
+  <app>\n\
+    <str>value1</str>\n\
+    <int>10</int>\n\
+  </app>\n\
+  <shared/>\n\
+</config>\n";
+
+    std::stringstream strm;
+    strm << config;
+    EXPECT_EQ(expectedResult, strm.str());
+}
+
 //TODO: add tests that merges sections of 'instance', <appConfig> and 'shared' in different combinations
-//TODO: add test for serialization of Config
 //TODO: add 'lock' optimization
-//TODO: Create <config> root element if ConfigSource doesn't have
 //TODO: provide way to get sequence of parameters with the same name
 //TODO: add command line config source
 //TODO: add environment config source
