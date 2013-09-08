@@ -31,29 +31,30 @@ namespace
 class Validator: boost::noncopyable
 {
 public:
-    Validator(const std::string& sourceName): sourceName_(sourceName) {}
-    void checkTreeDoesNotHaveDataAndAttributeNodes(const Tree& root) const
+    Validator(const std::string& sourceName, const Tree& root):
+        sourceName_(sourceName), root_(root) {}
+    void checkTreeDoesNotHaveDataAndAttributeNodes() const
     {
-        const Tree::value_type& child(root.front());
+        const Tree::value_type& child(root_.front());
         
         checkNodeDoesNotHaveDataAndAttribute(child.first, child.second);
     }
-    void checkNonEmptyTree(const Tree& tree) const
+    void checkNonEmptyTree() const
     {
-        if (tree.empty())
+        if (root_.empty())
             throw ConfigSource(str(
                 boost::format("Config source '%1%' is empty") % sourceName_));
     }
-    void checkSingleRootTree(const Tree& tree) const
+    void checkSingleRootTree() const
     {
-        if(tree.size() > 1)
+        if(root_.size() > 1)
             throw ConfigSource(str(
                 boost::format("Invalid config source '%1%'. Only one configuration root element is allowed") %
                 sourceName_));
     }
-    void checkNoSharedNodeDuplicates(const Tree& root) const
+    void checkNoSharedNodeDuplicates() const
     {
-        const Tree::value_type& child(root.front());
+        const Tree::value_type& child(root_.front());
         if(child.first != ROOT_NODE_NAME)
             return;
         if(child.second.count(SHARED_NODE_NAME) > 1)
@@ -61,9 +62,9 @@ public:
                 boost::format("Duplicate shared node in config source '%1%'") % sourceName_));
             
     }
-    void checkNoSharedSubnodeDuplicates(const Tree& root) const
+    void checkNoSharedSubnodeDuplicates() const
     {
-        const Tree* sharedNode = findSharedNode(root);
+        const Tree* sharedNode = findSharedNode(root_);
         if(!sharedNode)
             return;
         BOOST_FOREACH(const Tree::value_type& sharedChild, *sharedNode)
@@ -75,9 +76,9 @@ public:
                     sourceName_));
         }
     }
-    void checkNoAppNodeDuplicates(const Tree& root) const
+    void checkNoAppNodeDuplicates() const
     {
-        const Tree::value_type& child(root.front());
+        const Tree::value_type& child(root_.front());
         if(child.first != ROOT_NODE_NAME)
             return;
         BOOST_FOREACH(const Tree::value_type& grandChild, child.second)
@@ -89,9 +90,9 @@ public:
                     sourceName_));
         }
     }
-    void checkNoInstanceNodeDuplicates(const Tree& root) const
+    void checkNoInstanceNodeDuplicates() const
     {
-        const Tree::value_type& child(root.front());
+        const Tree::value_type& child(root_.front());
         if(child.first != ROOT_NODE_NAME)
             return checkNoInstanceNodeDuplicatesImpl(child.first, child.second);
 
@@ -100,9 +101,9 @@ public:
             checkNoInstanceNodeDuplicatesImpl(grandChild.first, grandChild.second);
         }
     }
-    void checkNoInstanceSubnodeDuplicates(const Tree& root) const
+    void checkNoInstanceSubnodeDuplicates() const
     {
-        const Tree::value_type& child(root.front());
+        const Tree::value_type& child(root_.front());
         if(child.first != ROOT_NODE_NAME)
             return checkNoInstanceSubnodeDuplicatesImpl(child.first, child.second);
 
@@ -170,6 +171,7 @@ private:
         }
     }
     const std::string& sourceName_;
+    const Tree& root_;
 };
 
 }//anonymous namespace
@@ -219,20 +221,20 @@ ConfigSource::Impl::Impl(
 
 void ConfigSource::Impl::processRawTree(ConfigSource::FileNameStyle fileNameStyle)
 {
-    const Validator validator(name());
-    validator.checkNonEmptyTree(root_);
-    validator.checkSingleRootTree(root_);
+    const Validator validator(name(), root_);
+    validator.checkNonEmptyTree();
+    validator.checkSingleRootTree();
     
     normalizeKeywords(root_, fileNameStyle);
     normalizeInstanceDelimiter(root_);
     
-    validator.checkNonEmptyTree(root_);
-    validator.checkTreeDoesNotHaveDataAndAttributeNodes(root_);
-    validator.checkNoSharedNodeDuplicates(root_);
-    validator.checkNoSharedSubnodeDuplicates(root_);
-    validator.checkNoAppNodeDuplicates(root_);
-    validator.checkNoInstanceNodeDuplicates(root_);
-    validator.checkNoInstanceSubnodeDuplicates(root_);
+    validator.checkNonEmptyTree();
+    validator.checkTreeDoesNotHaveDataAndAttributeNodes();
+    validator.checkNoSharedNodeDuplicates();
+    validator.checkNoSharedSubnodeDuplicates();
+    validator.checkNoAppNodeDuplicates();
+    validator.checkNoInstanceNodeDuplicates();
+    validator.checkNoInstanceSubnodeDuplicates();
 }
 
 std::string ConfigSource::Impl::toString(bool pretty) const
