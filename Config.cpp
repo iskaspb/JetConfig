@@ -111,26 +111,9 @@ public:
 private:
     void mergeShared(const PT::ptree& from, const std::string& sourceName)
     {
-        validateShared(from, sourceName);
         assert(config_->back().first == SHARED_NODE_NAME);
         PT::ptree& shared(config_->back().second);
         merge(shared, from);
-    }
-    void validateShared(const PT::ptree& from, const std::string& sourceName)
-    {//TODO: move this validation into ConfigSource
-        BOOST_FOREACH(const PT::ptree::value_type& node, from)
-        {
-            const std::string& nodeName = node.first;
-            if(nodeName == INSTANCE_NODE_NAME)
-                throw ConfigError(str(
-                    boost::format("Subsecion name '" INSTANCE_NODE_NAME "' is prohibited in '" SHARED_NODE_NAME "' section. Config source '%1%'") %
-                    sourceName));
-            if(node.second.empty())
-                throw ConfigError(str(
-                    boost::format("Attribute '%1%' in '" SHARED_NODE_NAME "' section of config source '%2%' must be defined under subsection") %
-                    nodeName %
-                    sourceName));
-        }
     }
     void mergeSelf(const PT::ptree& from, const std::string& sourceName)
     {

@@ -323,6 +323,28 @@ TEST(ConfigSource, NormalizeKeywords)
         "<config><app/></config>");
 }
 
+TEST(ConfigSource, ProhibitedSimpleSharedAttributes)
+{//...this is to prevent situation when shared attributes are treated as default values for simple attributes in application config
+    CONFIG_ERROR(
+        jet::ConfigSource(
+            "<shared attr1='value1'>\n"
+            "   <attr2>value2</attr2>\n"
+            "</shared>",
+            "s1.xml"),
+        "Config source 's1.xml' is invalid: 'shared' node can not contain direct properties. See 'shared.attr1' property");
+}
+
+TEST(ConfigSource, ProhibitedInstanceSubsectionInSharedSection)
+{//...not allowed because 'instance' is keyword
+    CONFIG_ERROR(
+        jet::ConfigSource(
+            "<shared>\n"
+            "   <Instance attr='value'/>\n"
+            "</shared>",
+            "s1.xml"),
+        "Config source 's1.xml' is invalid: 'shared' node can not contain 'Instance' node");
+}
+
 TEST(Config, SharedAttrConfigWithoutRootConfigElement)
 {
     const jet::ConfigSource shared(
@@ -412,30 +434,6 @@ TEST(Config, LockConfig)
         "Config 'appName:1' is locked");
 }
 
-TEST(Config, ProhibitedSimpleSharedAttributes)
-{//...this is to prevent situation when shared attributes are treated as default values for simple attributes in application config
-    const jet::ConfigSource s1(
-        "<shared attr1='value1'>\n"
-        "   <attr2>value2</attr2>\n"
-        "</shared>",
-        "s1.xml");
-    CONFIG_ERROR(
-        jet::Config("appName") << s1,
-        "Attribute 'attr1' in 'shared' section of config source 's1.xml' must be defined under subsection");
-}
-
-TEST(Config, ProhibitedInstanceSubsectionInSharedSection)
-{//...'instance' is keyword
-    const jet::ConfigSource s1(
-        "<shared>\n"
-        "   <instance attr='value'/>\n"
-        "</shared>",
-        "s1.xml");
-    CONFIG_ERROR(
-        jet::Config("appName") << s1,
-        "Subsecion name 'instance' is prohibited in 'shared' section. Config source 's1.xml'");
-}
-
 TEST(Config, Getters)
 {
     const jet::ConfigSource s1(
@@ -504,8 +502,8 @@ TEST(Config, Serialize)
     EXPECT_EQ(expectedResult, strm.str());
 }
 
-//TODO: add tests that merges sections of 'instance', <appConfig> and 'shared' in different combinations
 //TODO: add 'lock' optimization
+//TODO: add tests that merges sections of 'instance', <appConfig> and 'shared' in different combinations
 //TODO: provide way to get sequence of parameters with the same name
 //TODO: add command line config source
 //TODO: add environment config source

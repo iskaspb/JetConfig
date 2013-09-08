@@ -130,6 +130,37 @@ public:
                     sourceName_));
         }
     }
+    void checkNoSharedInstanceNode() const
+    {
+        const Tree::value_type& config(root_.front());
+        const CAssocIter sharedIter = config.second.find(SHARED_NODE_NAME);
+        if(config.second.not_found() == sharedIter)
+            return;
+        BOOST_FOREACH(const Tree::value_type& node, sharedIter->second)
+        {
+            const std::string nodeName = boost::to_lower_copy(node.first);
+            if(nodeName == INSTANCE_NODE_NAME)
+                throw ConfigError(str(
+                    boost::format("Config source '%1%' is invalid: '" SHARED_NODE_NAME "' node can not contain '%2%' node") %
+                    sourceName_ %
+                    node.first));
+        }
+    }
+    void checkNoDirectSharedAttributes() const
+    {
+        const Tree::value_type& config(root_.front());
+        const CAssocIter sharedIter = config.second.find(SHARED_NODE_NAME);
+        if(config.second.not_found() == sharedIter)
+            return;
+        BOOST_FOREACH(const Tree::value_type& node, sharedIter->second)
+        {
+            if(!node.second.data().empty())
+                throw ConfigError(str(
+                    boost::format("Config source '%1%' is invalid: '" SHARED_NODE_NAME "' node can not contain direct properties. See '" SHARED_NODE_NAME ".%2%' property") %
+                    sourceName_ %
+                    node.first));
+        }
+    }
     void checkNoAppNodeDuplicates() const
     {
         const Tree::value_type& config(root_.front());
@@ -269,6 +300,8 @@ void ConfigSource::Impl::processRawTree(ConfigSource::FileNameStyle fileNameStyl
     validator.checkTreeDoesNotHaveDataAndAttributeNodes();
     validator.checkNoSharedNodeDuplicates();
     validator.checkNoSharedSubnodeDuplicates();
+    validator.checkNoSharedInstanceNode();
+    validator.checkNoDirectSharedAttributes();
     validator.checkNoAppNodeDuplicates();
     validator.checkNoInstanceNodeDuplicates();
     validator.checkNoInstanceSubnodeDuplicates();
