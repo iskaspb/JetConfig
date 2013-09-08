@@ -32,26 +32,26 @@ class Validator: boost::noncopyable
 {
 public:
     Validator(const std::string& sourceName): sourceName_(sourceName) {}
-    void ensureTreeDoesNotHaveDataAndAttributeNodes(const Tree& root) const
+    void checkTreeDoesNotHaveDataAndAttributeNodes(const Tree& root) const
     {
         const Tree::value_type& child(root.front());
         
-        ensureNodeDoesNotHaveDataAndAttribute(child.first, child.second);
+        checkNodeDoesNotHaveDataAndAttribute(child.first, child.second);
     }
-    void ensureNonEmptyTree(const Tree& tree) const
+    void checkNonEmptyTree(const Tree& tree) const
     {
         if (tree.empty())
             throw ConfigSource(str(
                 boost::format("Config source '%1%' is empty") % sourceName_));
     }
-    void ensureSingleRootTree(const Tree& tree) const
+    void checkSingleRootTree(const Tree& tree) const
     {
         if(tree.size() > 1)
             throw ConfigSource(str(
                 boost::format("Invalid config source '%1%'. Only one configuration root element is allowed") %
                 sourceName_));
     }
-    void ensureNoSharedNodeDuplicates(const Tree& root) const
+    void checkNoSharedNodeDuplicates(const Tree& root) const
     {
         const Tree::value_type& child(root.front());
         if(child.first != ROOT_NODE_NAME)
@@ -61,7 +61,7 @@ public:
                 boost::format("Duplicate shared node in config source '%1%'") % sourceName_));
             
     }
-    void ensureNoSharedSubnodeDuplicates(const Tree& root) const
+    void checkNoSharedSubnodeDuplicates(const Tree& root) const
     {
         const Tree* sharedNode = findSharedNode(root);
         if(!sharedNode)
@@ -75,7 +75,7 @@ public:
                     sourceName_));
         }
     }
-    void ensureNoAppNodeDuplicates(const Tree& root) const
+    void checkNoAppNodeDuplicates(const Tree& root) const
     {
         const Tree::value_type& child(root.front());
         if(child.first != ROOT_NODE_NAME)
@@ -89,30 +89,30 @@ public:
                     sourceName_));
         }
     }
-    void ensureNoInstanceNodeDuplicates(const Tree& root) const
+    void checkNoInstanceNodeDuplicates(const Tree& root) const
     {
         const Tree::value_type& child(root.front());
         if(child.first != ROOT_NODE_NAME)
-            return ensureNoInstanceNodeDuplicatesImpl(child.first, child.second);
+            return checkNoInstanceNodeDuplicatesImpl(child.first, child.second);
 
         BOOST_FOREACH(const Tree::value_type& grandChild, child.second)
         {
-            ensureNoInstanceNodeDuplicatesImpl(grandChild.first, grandChild.second);
+            checkNoInstanceNodeDuplicatesImpl(grandChild.first, grandChild.second);
         }
     }
-    void ensureNoInstanceSubnodeDuplicates(const Tree& root) const
+    void checkNoInstanceSubnodeDuplicates(const Tree& root) const
     {
         const Tree::value_type& child(root.front());
         if(child.first != ROOT_NODE_NAME)
-            return ensureNoInstanceSubnodeDuplicatesImpl(child.first, child.second);
+            return checkNoInstanceSubnodeDuplicatesImpl(child.first, child.second);
 
         BOOST_FOREACH(const Tree::value_type& grandChild, child.second)
         {
-            ensureNoInstanceSubnodeDuplicatesImpl(grandChild.first, grandChild.second);
+            checkNoInstanceSubnodeDuplicatesImpl(grandChild.first, grandChild.second);
         }
     }
 private:
-    void ensureNodeDoesNotHaveDataAndAttribute(const Path& currentPath, const Tree& tree) const
+    void checkNodeDoesNotHaveDataAndAttribute(const Path& currentPath, const Tree& tree) const
     {
         if(!tree.empty() && !tree.data().empty())
             throw ConfigError(str(
@@ -122,7 +122,7 @@ private:
         BOOST_FOREACH(const Tree::value_type& node, tree)
         {
             const Path nodePath(currentPath/Path(node.first));
-            ensureNodeDoesNotHaveDataAndAttribute(nodePath, node.second);
+            checkNodeDoesNotHaveDataAndAttribute(nodePath, node.second);
         }
     }
     const Tree* findSharedNode(const Tree& root) const
@@ -138,7 +138,7 @@ private:
         }
         return 0;
     }
-    void ensureNoInstanceNodeDuplicatesImpl(const std::string& appName, const Tree& appNode) const
+    void checkNoInstanceNodeDuplicatesImpl(const std::string& appName, const Tree& appNode) const
     {
         if(SHARED_NODE_NAME == appName)//...in fact this is not an application node
             return;
@@ -148,7 +148,7 @@ private:
                 appName %
                 sourceName_));
     }
-    void ensureNoInstanceSubnodeDuplicatesImpl(const std::string& appName, const Tree& appNode) const
+    void checkNoInstanceSubnodeDuplicatesImpl(const std::string& appName, const Tree& appNode) const
     {
         if(SHARED_NODE_NAME == appName)//...in fact this is not an application node
             return;
@@ -220,19 +220,19 @@ ConfigSource::Impl::Impl(
 void ConfigSource::Impl::processRawTree(ConfigSource::FileNameStyle fileNameStyle)
 {
     const Validator validator(name());
-    validator.ensureNonEmptyTree(root_);
-    validator.ensureSingleRootTree(root_);
+    validator.checkNonEmptyTree(root_);
+    validator.checkSingleRootTree(root_);
     
     normalizeKeywords(root_, fileNameStyle);
     normalizeInstanceDelimiter(root_);
     
-    validator.ensureNonEmptyTree(root_);
-    validator.ensureTreeDoesNotHaveDataAndAttributeNodes(root_);
-    validator.ensureNoSharedNodeDuplicates(root_);
-    validator.ensureNoSharedSubnodeDuplicates(root_);
-    validator.ensureNoAppNodeDuplicates(root_);
-    validator.ensureNoInstanceNodeDuplicates(root_);
-    validator.ensureNoInstanceSubnodeDuplicates(root_);
+    validator.checkNonEmptyTree(root_);
+    validator.checkTreeDoesNotHaveDataAndAttributeNodes(root_);
+    validator.checkNoSharedNodeDuplicates(root_);
+    validator.checkNoSharedSubnodeDuplicates(root_);
+    validator.checkNoAppNodeDuplicates(root_);
+    validator.checkNoInstanceNodeDuplicates(root_);
+    validator.checkNoInstanceSubnodeDuplicates(root_);
 }
 
 std::string ConfigSource::Impl::toString(bool pretty) const
