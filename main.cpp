@@ -502,8 +502,8 @@ TEST(Config, Serialize)
     EXPECT_EQ(expectedResult, strm.str());
 }
 
-//TODO: add 'lock' optimization
+//TODO: get rid of 'lock' logic and merge everything in in one pass
 //TODO: add tests that merges sections of 'instance', <appConfig> and 'shared' in different combinations
-//TODO: provide way to get sequence of parameters with the same name
+//TODO: expose internal property tree for complex queries
 //TODO: add command line config source
 //TODO: add environment config source
