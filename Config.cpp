@@ -45,12 +45,12 @@ public:
     {
         if(appName_.empty())
             throw ConfigError("Empty config name");
-        root_.push_back(PT::ptree::value_type(ROOT_NODE_NAME, PT::ptree()));
+        root_.push_back(ValueType(ROOT_NODE_NAME, Tree()));
         config_ = &root_.front().second;
         if(!instanceName_.empty())
-            config_->push_back(PT::ptree::value_type(instanceName_, PT::ptree()));
-        config_->push_back(PT::ptree::value_type(appName_, PT::ptree()));
-        config_->push_back(PT::ptree::value_type(SHARED_NODE_NAME, PT::ptree()));
+            config_->push_back(ValueType(instanceName_, Tree()));
+        config_->push_back(ValueType(appName_, Tree()));
+        config_->push_back(ValueType(SHARED_NODE_NAME, Tree()));
     }
     void merge(const ConfigSource::Impl& source)
     {
@@ -61,12 +61,12 @@ public:
         {//...merge shared attributes (if found)
             const CAssocIter sharedIter = otherConfig.find(SHARED_NODE_NAME);
             if(otherConfig.not_found() != sharedIter)
-                mergeShared(sharedIter->second, source.name());
+                merge(getSharedNode(), sharedIter->second);
         }
         const CAssocIter appIter = otherConfig.find(appName());
         if(appIter == otherConfig.not_found())
             return;
-        mergeSelf(appIter->second, source.name());
+        merge(getSelfNode(), appIter->second);
         if(!instanceName_.empty())
         {//...merge instance
             const CAssocIter instanceRootIter = appIter->second.find(INSTANCE_NODE_NAME);
@@ -75,20 +75,20 @@ public:
                 const CAssocIter instanceIter = instanceRootIter->second.find(instanceName());
                 if(instanceRootIter->second.not_found() != instanceIter)
                 {
-                    mergeInstance(instanceIter->second, source.name());
+                    merge(getInstanceNode(), instanceIter->second);
                 }
             }
         }
     }
     boost::optional<std::string> get(const std::string& attrName) const
     {
-        BOOST_FOREACH(const PT::ptree::value_type& node, *config_)
-        {
-            const boost::optional<const PT::ptree&> attrNode(
-                node.second.get_child_optional(attrName));
-            if(attrNode)
-                return attrNode->get_value<std::string>();
-        }
+        if(!locked_)
+            throw ConfigError(str(
+                boost::format("You should finish config initialization")));
+        const boost::optional<const Tree&> attrNode(
+            config_->front().second.get_child_optional(attrName));
+        if(attrNode)
+            return attrNode->get_value<std::string>();
         return boost::none;
     }
     std::string name() const
@@ -103,54 +103,35 @@ public:
     }
     const std::string& appName() const { return appName_; }
     const std::string& instanceName() const { return instanceName_; }
-    void lock() { locked_ = true; }
+    void lock()
+    {
+        if(locked_)
+            return;
+        //...merge self node and (optionally) instance node into shared node
+        merge(getSharedNode(), getSelfNode());
+        if(!instanceName().empty())
+            merge(getSharedNode(), getInstanceNode());
+        //...swap self node and shared node to move result into self node
+        getSharedNode().swap(getSelfNode());
+        //...erase shared and (optionally) instance node
+        config_->erase(SHARED_NODE_NAME);
+        config_->erase(instanceName());
+        locked_ = true;
+    }
     void print(std::ostream& os) const
     {
         PT::write_xml(os, root_, PT::xml_writer_make_settings(' ', 2));
     }
 private:
-    void mergeShared(const PT::ptree& from, const std::string& sourceName)
+    static void merge(Tree& to, const Tree& from)
     {
-        assert(config_->back().first == SHARED_NODE_NAME);
-        PT::ptree& shared(config_->back().second);
-        merge(shared, from);
-    }
-    void mergeSelf(const PT::ptree& from, const std::string& sourceName)
-    {
-        if(instanceName_.empty())
-        {
-            assert(config_->size() == 2);
-            assert(config_->front().first == name());
-            PT::ptree& self(config_->front().second);
-            merge(self, from);
-        }
-        else
-        {
-            assert(config_->size() == 3);
-            PT::ptree::iterator iter(config_->begin());
-            ++iter;
-            assert(iter->first == appName());
-            PT::ptree& self(iter->second);
-            merge(self, from);
-        }
-    }
-    void mergeInstance(const PT::ptree& from, const std::string& sourceName)
-    {
-        assert(!instanceName_.empty());
-        assert(config_->size() == 3);
-        assert(config_->front().first == instanceName());
-        PT::ptree& instance(config_->front().second);
-        merge(instance, from);
-    }
-    static void merge(PT::ptree& to, const PT::ptree& from)
-    {
-        BOOST_FOREACH(const PT::ptree::value_type& node, from)
+        BOOST_FOREACH(const ValueType& node, from)
         {
             const std::string& mergeName(node.first);
             if(INSTANCE_NODE_NAME == mergeName)
                 continue;
-            const PT::ptree& mergeTree(node.second);
-            const PT::ptree::assoc_iterator iter(to.find(mergeName));
+            const Tree& mergeTree(node.second);
+            const AssocIter iter(to.find(mergeName));
             if(iter == to.not_found())
             {
                 to.push_back(node);
@@ -165,11 +146,47 @@ private:
             }
         }
     }
+    Tree& getInstanceNode()
+    {
+        assert(!locked_);
+        assert(!instanceName_.empty());
+        assert(config_->size() == 3);
+        assert(config_->front().first == instanceName());
+        Tree& instance(config_->front().second);
+        return instance;
+    }
+    Tree& getSelfNode()
+    {
+        assert(!locked_);
+        if(instanceName_.empty())
+        {
+            assert(config_->size() == 2);
+            assert(config_->front().first == name());
+            Tree& self(config_->front().second);
+            return self;
+        }
+        else
+        {
+            assert(config_->size() == 3);
+            Iter iter(config_->begin());
+            ++iter;
+            assert(iter->first == appName());
+            Tree& self(iter->second);
+            return self;
+        }
+    }
+    Tree& getSharedNode()
+    {
+        assert(!locked_);
+        assert(config_->back().first == SHARED_NODE_NAME);
+        Tree& shared(config_->back().second);
+        return shared;
+    }
     //...
     bool locked_;
     std::string appName_, instanceName_;//...name() := appName_ [':' instanceName_]
-    PT::ptree root_;
-    PT::ptree* config_;
+    Tree root_;
+    Tree* config_;
 };
 
 Config::Config(const std::string& appName, const std::string& instanceName):

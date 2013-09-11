@@ -372,7 +372,7 @@ TEST(Config, AttribConfigSourceMerge)
     const jet::ConfigSource s1("<appName attr1='10' attr2='something'></appName>");
     const jet::ConfigSource s2("<appName attr2='20' attr3='value3'></appName>");
     jet::Config config("appName");
-    config << s1 << s2;
+    config << s1 << s2 << jet::lock;
     EXPECT_EQ("appName", config.name());
     EXPECT_EQ(10,        config.get<int>("attr1"));
     EXPECT_EQ(20,        config.get<int>("attr2"));
@@ -394,7 +394,7 @@ TEST(Config, SubtreeConfigSourceMerge)
         "</appName>\n",
         "s2");
     jet::Config config("appName");
-    config << s1 << s2;
+    config << s1 << s2 << jet::lock;
     EXPECT_EQ("appName", config.name());
     EXPECT_EQ(10,        config.get<int>("attribs.attr1"));
     EXPECT_EQ(20,        config.get<int>("attribs.attr2"));
@@ -406,7 +406,7 @@ TEST(Config, AnyCaseSystemConfigName)
 {
     const jet::ConfigSource s1("<conFIG><appName attr='10'></appName></conFIG>", "s1.xml");
     jet::Config config("appName");
-    config << s1;
+    config << s1 << jet::lock;
     EXPECT_EQ(10, config.get<int>("attr"));
 }
 
@@ -471,22 +471,26 @@ TEST(Config, Getters)
     
 }
 
-TEST(Config, Serialize)
+TEST(Config, Lock)
 {
     const jet::ConfigSource s1(
-        "<app str='value1' int='10'/><app2 attr='value'/>",
+        "<app str='value1' int='10'/><app:1><lib attr1='0s1'/></app:1><app2 attr='value'/><shared><lib attr1='1s1' attr2='2s1'/></shared>",
         "s1.xml");
     const jet::ConfigSource s2(
-        "<app:1 str='value2' float='10.'/>",
+        "<config><app:1 str='value2' float='10.'/><shared><lib attr1='1s2'/></shared></config>",
         "s2.xml");
 
     jet::Config config("app", "1");
     config << s1 << s2;
-
-    const char* expectedResult =
+    
+    {//...check config before locking it
+        const char* unlockedConfig =
 "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n\
 <config>\n\
   <1>\n\
+    <lib>\n\
+      <attr1>0s1</attr1>\n\
+    </lib>\n\
     <str>value2</str>\n\
     <float>10.</float>\n\
   </1>\n\
@@ -494,16 +498,43 @@ TEST(Config, Serialize)
     <str>value1</str>\n\
     <int>10</int>\n\
   </app>\n\
-  <shared/>\n\
+  <shared>\n\
+    <lib>\n\
+      <attr1>1s2</attr1>\n\
+      <attr2>2s1</attr2>\n\
+    </lib>\n\
+  </shared>\n\
 </config>\n";
 
-    std::stringstream strm;
-    strm << config;
-    EXPECT_EQ(expectedResult, strm.str());
+        std::stringstream strm;
+        strm << config;
+        EXPECT_EQ(unlockedConfig, strm.str());
+    }
+    
+    config << jet::lock;
+    
+    {//...and after
+        const char* unlockedConfig =
+"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n\
+<config>\n\
+  <app>\n\
+    <lib>\n\
+      <attr1>0s1</attr1>\n\
+      <attr2>2s1</attr2>\n\
+    </lib>\n\
+    <str>value2</str>\n\
+    <int>10</int>\n\
+    <float>10.</float>\n\
+  </app>\n\
+</config>\n";
+
+        std::stringstream strm;
+        strm << config;
+        EXPECT_EQ(unlockedConfig, strm.str());
+    }
 }
 
-//TODO: get rid of 'lock' logic and merge everything in in one pass
-//TODO: add tests that merges sections of 'instance', <appConfig> and 'shared' in different combinations
+//TODO: (SourceConfig) prohibit '.' separator everywhere except application name
 //TODO: expose internal property tree for complex queries
 //TODO: add command line config source
 //TODO: add environment config source

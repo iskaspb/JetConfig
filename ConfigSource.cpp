@@ -327,9 +327,8 @@ void ConfigSource::Impl::normalizeXmlAttributes(Tree& rawTree) const
     if (rawTree.empty())
         throw ConfigSource(str(
             boost::format("Config source '%1%' is empty") % name()));
-    Tree::value_type& child(rawTree.front());
     
-    normalizeXmlAttributesImpl(child.first, child.second);
+    normalizeXmlAttributesImpl(Path(), rawTree);
 }
 
 void ConfigSource::Impl::normalizeXmlAttributesImpl(const Path& currentPath, Tree& rawTree) const
