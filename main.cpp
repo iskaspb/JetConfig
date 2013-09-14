@@ -8,6 +8,7 @@
 #include "gtest.hpp"
 #include "Config.hpp"
 #include "ConfigError.hpp"
+#include <boost/foreach.hpp>
 #include <iostream>
 
 using std::cout;
@@ -562,7 +563,49 @@ TEST(Config, getChild)
     
 }
 
+TEST(Config, getChildren)
+{
+    const jet::ConfigSource s1(
+"<deployment>\n\
+    <region name='UK'>\n\
+        <boxes>\n\
+            <box hostname='UK1'/>\n\
+            <box hostname='UK2'/>\n\
+            <box hostname='UK3'/>\n\
+        </boxes>\n\
+    </region>\n\
+    <region name='US'>\n\
+        <boxes>\n\
+            <box hostname='US1'/>\n\
+            <box hostname='US2'/>\n\
+        </boxes>\n\
+    </region>\n\
+</deployment>\n",
+        "s1");
+    jet::Config deployment("deployment");
+    deployment << s1;
+    deployment << jet::lock;
+    const std::vector<jet::ConfigNode> regions(deployment.getChildren("region"));
+    EXPECT_EQ(2, regions.size());
+    BOOST_FOREACH(const jet::ConfigNode& region, regions)
+    {
+        const std::string& regionName = region.get<std::string>("name");
+        const std::vector<jet::ConfigNode> boxes(region.getChildren("boxes.box"));
+        if("US" == regionName)
+            EXPECT_EQ(2, boxes.size());
+        else
+            EXPECT_EQ(3, boxes.size());
+        unsigned index = 1;
+        BOOST_FOREACH(const jet::ConfigNode& box, region.getChildren("boxes.box"))
+        {
+            const std::string expectedHostname(regionName + boost::lexical_cast<std::string>(index));
+            EXPECT_EQ(expectedHostname, box.get<std::string>("hostname"));
+            ++index;
+        }
+    }
+}
 
+//TODO: test merge of repeating elements
 //TODO: test xml comments
 //TODO: (SourceConfig) prohibit '.' separator everywhere except application name
 //TODO: add command line config source

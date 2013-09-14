@@ -12,6 +12,7 @@
 #include <boost/property_tree/exceptions.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/tuple/tuple.hpp>
 #include <boost/foreach.hpp>
 #include <boost/format.hpp>
 #include <sstream>
@@ -90,7 +91,10 @@ public:
         const CAssocIter appIter = otherConfig.find(appName());
         if(appIter == otherConfig.not_found())
             return;
-        merge(getSelfNode(), appIter->second);
+        {
+            merge(getSelfNode(), appIter->second);
+            removeRedundantInstanceFromSelf();
+        }
         if(!instanceName().empty())
         {//...merge instance
             const CAssocIter instanceRootIter = appIter->second.find(INSTANCE_NODE_NAME);
@@ -134,6 +138,11 @@ public:
 private:
     static void merge(Tree& to, const Tree& from)
     {
+        if(to.empty())
+        {
+            to = from;
+            return;
+        }
         BOOST_FOREACH(const ValueType& node, from)
         {
             const std::string& mergeName(node.first);
@@ -154,6 +163,10 @@ private:
                 merge(iter->second, mergeTree);
             }
         }
+    }
+    void removeRedundantInstanceFromSelf()
+    {
+        getSelfNode().erase(INSTANCE_NODE_NAME);
     }
     Tree& getInstanceNode()
     {
@@ -315,6 +328,18 @@ ConfigNode ConfigNode::getChild(const std::string& path) const
         path));
 }
 
+
+namespace {
+inline std::string contatenatePath(const std::string& lhs, const std::string& rhs)
+{
+    std::string res(lhs);
+    if(!res.empty())
+        res += '.';
+    res += rhs;
+    return res;
+}
+}//anonymous namespace
+
 boost::optional<ConfigNode> ConfigNode::getChildOptional(const std::string& path) const
 {
     impl_->getConfigNode();//...just to check locked state
@@ -322,24 +347,56 @@ boost::optional<ConfigNode> ConfigNode::getChildOptional(const std::string& path
         static_cast<const Tree*>(treeNode_)->get_child_optional(path));
     if(node)
     {
-        std::string newPath(path_);
-        if(!newPath.empty())
-            newPath += '.';
-        newPath += path;
         return ConfigNode(
-            newPath,
+            contatenatePath(path_, path),
             impl_,
             &(*node));
     }
     return boost::none;
 }
 
+namespace {
+inline std::pair<std::string, std::string> cutoffLastNode(const std::string& path)
+{
+    const size_t pos = path.find_last_of('.');
+    if(pos == std::string::npos)
+        return std::pair<std::string, std::string>(std::string(), path);
+    std::pair<std::string, std::string> res;
+    res.first = path.substr(0, pos);
+    res.second = path.substr(pos + 1);
+    return res;
+}
+}//anonymous namespace
+
 std::vector<ConfigNode> ConfigNode::getChildren(const std::string& path) const
 {
+    if(path.empty())
+        throw ConfigError("Can't get children with empty path");
     impl_->getConfigNode();//...just to check locked state
-    //BOOST_FOREACH(const ,
-    //TODO: finish
-    throw std::runtime_error("todo");
+    
+    std::string parentPath, childName;
+    boost::tie(parentPath, childName) = cutoffLastNode(path);
+    
+    const std::string newPath(contatenatePath(path_, path));
+    
+    const Tree& parentNode =
+        (parentPath.empty() ?
+            *static_cast<const Tree*>(treeNode_):
+            static_cast<const Tree*>(treeNode_)->get_child(parentPath));
+    
+    std::vector<ConfigNode> result;
+    BOOST_FOREACH(
+        const Tree::value_type& node,
+        parentNode)
+    {
+        if(node.first == childName)
+            result.push_back(
+                ConfigNode(
+                    newPath,
+                    impl_,
+                    &node.second));
+    }
+    return result;
 }
 
 std::string ConfigNode::getValue() const
