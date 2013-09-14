@@ -44,7 +44,7 @@ public:
     std::string toString(OutputType outputType = Pretty) const;
 private:
     boost::shared_ptr<Impl> impl_;
-    friend class Config;
+    friend class ConfigNode;
 };
 
 }//namespace jet

@@ -13,52 +13,81 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
+#include <vector>
 
 namespace jet
 {
 
-struct ConfigLock {};
-extern const ConfigLock lock;//...this is used to lock Config, that is to finish creation from ConfigSource. Efectively it makes Config immutable
-
-class Config
+class ConfigNode
 {
+    class Impl;
+    ConfigNode(
+        const std::string& path,
+        const boost::shared_ptr<Impl>& impl,
+        const void* treeNode);
 public:
-    explicit Config(
-        const std::string& name,
-        const std::string& instanceName = std::string());
-    Config(const Config& other);
-    const Config& operator=(const Config& other);
-    ~Config();
-
-    Config& operator<<(const ConfigSource& source);
-    void operator<<(ConfigLock);
-    friend std::ostream& operator<<(std::ostream& os, const Config& config);
-
+    ConfigNode(const ConfigNode& copee);
+    ConfigNode& operator=(const ConfigNode& copee);
+    virtual ~ConfigNode();
     std::string name() const;
     const std::string& appName() const;
     const std::string& instanceName() const;
+    const std::string& path() const { return path_; }
     
-    std::string get(const std::string& attrName) const;
+    ConfigNode getChild(const std::string& path) const;
+    boost::optional<ConfigNode> getChildOptional(const std::string& path) const;
+    std::vector<ConfigNode> getChildren(const std::string& path) const;
+    std::string getValue() const;
+    
+    std::string get(const std::string& attrName) const{ return getImpl(attrName); }
     template<typename T>
     T get(const std::string& attrName) const;
     
-    boost::optional<std::string> getOptional(const std::string& attrName) const;
+    boost::optional<std::string> getOptional(const std::string& attrName) const{ return getOptionalImpl(attrName); }
     template<typename T>
     boost::optional<T> getOptional(const std::string& attrName) const;
     
-    std::string get(const std::string& attrName, const std::string& defaultValue) const;
+    std::string get(const std::string& attrName, const std::string& defaultValue) const{ return getImpl(attrName, defaultValue); }
     template<typename T>
     T get(const std::string& attrName, const T& defaultValue) const;
+protected:
+    ConfigNode(const std::string& appName, const std::string& instanceName);
+    void merge(const ConfigSource& source);
+    void lock();
+    void print(std::ostream& os) const;
 private:
+    std::string getImpl(const std::string& attrName) const;
+    boost::optional<std::string> getOptionalImpl(const std::string& attrName) const;
+    std::string getImpl(const std::string& attrName, const std::string& defaultValue) const;
     void throwValueConversionError(const std::string& attrName, const std::string& value) const;
-    class Impl;
+    friend std::ostream& operator<<(std::ostream& os, const ConfigNode& config);
+    //...
+    std::string path_;
     boost::shared_ptr<Impl> impl_;
+    const void* treeNode_;
 };
 
-template<typename T>
-inline T Config::get(const std::string& attrName) const
+extern std::ostream& operator<<(std::ostream& os, const ConfigNode& config);
+
+struct ConfigLock {};
+extern const ConfigLock lock;//...this is used to lock Config, that is to finish creation from ConfigSource. Efectively it makes Config immutable
+
+class Config: public ConfigNode
 {
-    const std::string value(get(attrName));
+public:
+    explicit Config(
+        const std::string& appName,
+        const std::string& instanceName = std::string());
+
+    Config& operator<<(const ConfigSource& source);
+    void operator<<(ConfigLock);
+};
+
+
+template<typename T>
+inline T ConfigNode::get(const std::string& attrName) const
+{
+    const std::string value(getImpl(attrName));
     try
     {
         return boost::lexical_cast<T>(value);
@@ -71,9 +100,9 @@ inline T Config::get(const std::string& attrName) const
 }
 
 template<typename T>
-inline boost::optional<T> Config::getOptional(const std::string& attrName) const
+inline boost::optional<T> ConfigNode::getOptional(const std::string& attrName) const
 {
-    const boost::optional<std::string> value(getOptional(attrName));
+    const boost::optional<std::string> value(getOptionalImpl(attrName));
     if(!value)
         return boost::none;
     try
@@ -88,9 +117,9 @@ inline boost::optional<T> Config::getOptional(const std::string& attrName) const
 }
 
 template<typename T>
-inline T Config::get(const std::string& attrName, const T& defaultValue) const
+inline T ConfigNode::get(const std::string& attrName, const T& defaultValue) const
 {
-    boost::optional<std::string> value(getOptional(attrName));
+    boost::optional<std::string> value(getOptionalImpl(attrName));
     if(!value)
         return defaultValue;
     try
@@ -103,8 +132,6 @@ inline T Config::get(const std::string& attrName, const T& defaultValue) const
         throw;
     }
 }
-
-extern std::ostream& operator<<(std::ostream& os, const Config& config);
 
 }//namespace jet
 

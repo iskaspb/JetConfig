@@ -471,7 +471,7 @@ TEST(Config, Getters)
     
 }
 
-TEST(Config, Lock)
+TEST(Config, Initialization)
 {
     const jet::ConfigSource s1(
         "<app str='value1' int='10'/><app:1><lib attr1='0s1'/></app:1><app2 attr='value'/><shared><lib attr1='1s1' attr2='2s1'/></shared>",
@@ -509,32 +509,61 @@ TEST(Config, Lock)
         std::stringstream strm;
         strm << config;
         EXPECT_EQ(unlockedConfig, strm.str());
+        CONFIG_ERROR(config.get("str"), "Initialization of config 'app:1' is not finished");
     }
     
     config << jet::lock;
     
     {//...and after
         const char* unlockedConfig =
-"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n\
-<config>\n\
-  <app>\n\
-    <lib>\n\
-      <attr1>0s1</attr1>\n\
-      <attr2>2s1</attr2>\n\
-    </lib>\n\
-    <str>value2</str>\n\
-    <int>10</int>\n\
-    <float>10.</float>\n\
-  </app>\n\
-</config>\n";
-
+"<app:1>\n\
+<lib>\n\
+  <attr1>0s1</attr1>\n\
+  <attr2>2s1</attr2>\n\
+</lib>\n\
+<str>value2</str>\n\
+<int>10</int>\n\
+<float>10.</float>\n\
+</app:1>\n";
         std::stringstream strm;
         strm << config;
         EXPECT_EQ(unlockedConfig, strm.str());
     }
 }
 
+TEST(Config, getChild)
+{
+    const jet::ConfigSource s1(
+        "<appName>\n"
+        "  <attribs attr1='10' attr2='something'></attribs>\n"
+        "</appName>\n",
+        "s1");
+    const jet::ConfigSource s2(
+        "<appName:1>\n"
+        "  <attribs attr2='20' attr3='value3'>\n"
+        "    <subkey attr='data'></subkey>\n"
+        "  </attribs>\n"
+        "</appName:1>\n",
+        "s2");
+    jet::Config config("appName", "1");
+    config << s1 << s2 << jet::lock;
+    const jet::ConfigNode attribs(config.getChild("attribs"));
+    EXPECT_EQ("appName:1.attribs", attribs.name());
+    EXPECT_EQ(10,        attribs.get<int>("attr1"));
+    EXPECT_EQ(20,        attribs.get<int>("attr2"));
+    EXPECT_EQ("value3",  attribs.get("attr3"));
+    EXPECT_EQ("data",    attribs.get("subkey.attr"));
+    
+    const jet::ConfigNode subkey(attribs.getChild("subkey"));
+    EXPECT_EQ("appName:1.attribs.subkey", subkey.name());
+    EXPECT_EQ("data", subkey.get("attr"));
+    
+    CONFIG_ERROR(attribs.getChild("UNKNOWN"), "Config 'appName:1.attribs' doesn't have child 'UNKNOWN'");
+    
+}
+
+
+//TODO: test xml comments
 //TODO: (SourceConfig) prohibit '.' separator everywhere except application name
-//TODO: expose internal property tree for complex queries
 //TODO: add command line config source
 //TODO: add environment config source
