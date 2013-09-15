@@ -29,15 +29,19 @@ public:
     ConfigNode(const ConfigNode& copee);
     ConfigNode& operator=(const ConfigNode& copee);
     virtual ~ConfigNode();
-    std::string name() const;
+    std::string name() const;//...name := appName [ ':' instanceName ] [ '.' path ]
     const std::string& appName() const;
     const std::string& instanceName() const;
     const std::string& path() const { return path_; }
+    const std::string nodeName() const; //...this is the last part of 'path', e.g. for path 'long.path.to.element' nodeName equal to 'element'
     
-    ConfigNode getChild(const std::string& path) const;
-    boost::optional<ConfigNode> getChildOptional(const std::string& path) const;
-    std::vector<ConfigNode> getChildren(const std::string& path) const;
+    ConfigNode getNode(const std::string& path) const;
+    boost::optional<ConfigNode> getNodeOptional(const std::string& path) const;
+    std::vector<ConfigNode> getChildrenOf(const std::string& path = std::string()) const;
+
     std::string getValue() const;
+    template<typename T> T getValue() const;
+    
     
     std::string get(const std::string& attrName) const{ return getImpl(attrName); }
     template<typename T>
@@ -67,6 +71,8 @@ private:
     const void* treeNode_;
 };
 
+typedef std::vector<ConfigNode> ConfigNodes;
+
 extern std::ostream& operator<<(std::ostream& os, const ConfigNode& config);
 
 struct ConfigLock {};
@@ -83,6 +89,19 @@ public:
     void operator<<(ConfigLock);
 };
 
+template<typename T> T ConfigNode::getValue() const
+{
+    const std::string value(getValue());
+    try
+    {
+        return boost::lexical_cast<T>(value);
+    }
+    catch(const boost::bad_lexical_cast&)
+    {
+        throwValueConversionError(name(), value);
+        throw;
+    }
+}
 
 template<typename T>
 inline T ConfigNode::get(const std::string& attrName) const

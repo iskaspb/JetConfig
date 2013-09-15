@@ -207,8 +207,8 @@ private:
     Tree* config_;
 };
 
-ConfigNode::ConfigNode(const std::string& iappName, const std::string& iinstanceName):
-    impl_(new Impl(iappName, iinstanceName)),
+ConfigNode::ConfigNode(const std::string& appName, const std::string& instanceName):
+    impl_(new Impl(boost::trim_copy(appName), boost::trim_copy(instanceName))),
     treeNode_(0)
 {}
 
@@ -261,7 +261,9 @@ void ConfigNode::print(std::ostream& os) const
 {
     if(treeNode_)
     {
-        os << '<' << name() << ">\n";
+        os << '<' << name() << '>';
+        if(!static_cast<const Tree*>(treeNode_)->empty())
+            os << '\n';
         {
             std::stringstream strm;
             PT::write_xml(
@@ -283,11 +285,6 @@ void ConfigNode::print(std::ostream& os) const
 }
 
 
-Config::Config(const std::string& appName, const std::string& instanceName):
-    ConfigNode(appName, instanceName)
-{
-}
-
 std::string ConfigNode::getImpl(const std::string& attrName) const
 {
     boost::optional<std::string> value(getOptionalImpl(attrName));
@@ -303,7 +300,7 @@ boost::optional<std::string> ConfigNode::getOptionalImpl(const std::string& attr
 {
     impl_->getConfigNode();//...just to check locked state
     const boost::optional<const Tree&> attrNode(
-        static_cast<const Tree*>(treeNode_)->get_child_optional(attrName));
+        static_cast<const Tree*>(treeNode_)->get_child_optional(boost::trim_copy(attrName)));
     if(attrNode)
         return attrNode->get_value<std::string>();
     return boost::none;
@@ -317,9 +314,9 @@ std::string ConfigNode::getImpl(const std::string& attrName, const std::string& 
     return defaultValue;
 }
 
-ConfigNode ConfigNode::getChild(const std::string& path) const
+ConfigNode ConfigNode::getNode(const std::string& path) const
 {
-    boost::optional<ConfigNode> optChild(getChildOptional(path));
+    boost::optional<ConfigNode> optChild(getNodeOptional(path));
     if(optChild)
         return *optChild;
     throw ConfigError(str(
@@ -330,7 +327,7 @@ ConfigNode ConfigNode::getChild(const std::string& path) const
 
 
 namespace {
-inline std::string contatenatePath(const std::string& lhs, const std::string& rhs)
+inline std::string concatenatePath(const std::string& lhs, const std::string& rhs)
 {
     std::string res(lhs);
     if(!res.empty())
@@ -340,15 +337,16 @@ inline std::string contatenatePath(const std::string& lhs, const std::string& rh
 }
 }//anonymous namespace
 
-boost::optional<ConfigNode> ConfigNode::getChildOptional(const std::string& path) const
+boost::optional<ConfigNode> ConfigNode::getNodeOptional(const std::string& rawPath) const
 {
     impl_->getConfigNode();//...just to check locked state
+    const std::string path(boost::trim_copy(rawPath));
     const boost::optional<const Tree&> node(
         static_cast<const Tree*>(treeNode_)->get_child_optional(path));
     if(node)
     {
         return ConfigNode(
-            contatenatePath(path_, path),
+            concatenatePath(path_, path),
             impl_,
             &(*node));
     }
@@ -368,16 +366,18 @@ inline std::pair<std::string, std::string> cutoffLastNode(const std::string& pat
 }
 }//anonymous namespace
 
-std::vector<ConfigNode> ConfigNode::getChildren(const std::string& path) const
+const std::string ConfigNode::nodeName() const
 {
-    if(path.empty())
-        throw ConfigError("Can't get children with empty path");
+    return cutoffLastNode(path()).second;
+}
+
+std::vector<ConfigNode> ConfigNode::getChildrenOf(const std::string& rawParentPath) const
+{
     impl_->getConfigNode();//...just to check locked state
     
-    std::string parentPath, childName;
-    boost::tie(parentPath, childName) = cutoffLastNode(path);
-    
-    const std::string newPath(contatenatePath(path_, path));
+    const std::string parentPath(boost::trim_copy(rawParentPath));
+
+    const std::string fullParentPath(concatenatePath(path_, parentPath));
     
     const Tree& parentNode =
         (parentPath.empty() ?
@@ -389,12 +389,12 @@ std::vector<ConfigNode> ConfigNode::getChildren(const std::string& path) const
         const Tree::value_type& node,
         parentNode)
     {
-        if(node.first == childName)
-            result.push_back(
-                ConfigNode(
-                    newPath,
-                    impl_,
-                    &node.second));
+        const std::string newPath(concatenatePath(fullParentPath, node.first));
+        result.push_back(
+            ConfigNode(
+                newPath,
+                impl_,
+                &node.second));
     }
     return result;
 }
@@ -402,8 +402,12 @@ std::vector<ConfigNode> ConfigNode::getChildren(const std::string& path) const
 std::string ConfigNode::getValue() const
 {
     impl_->getConfigNode();//...just to check locked state
-    //TODO: finish
-    throw std::runtime_error("todo");
+    //const std::string& value = static_cast<const Tree*>(treeNode_)->data();
+    const Tree& node(*static_cast<const Tree*>(treeNode_));
+    if(node.empty())
+        return node.data();
+    throw ConfigError(str(
+        boost::format("Node '%1%' is intermidiate node without value") % name()));
 }
 
 std::ostream& operator<<(std::ostream& os, const ConfigNode& config)
@@ -430,6 +434,11 @@ void ConfigNode::throwValueConversionError(const std::string& attrName, const st
         value %
         attrName %
         name()));
+}
+
+Config::Config(const std::string& appName, const std::string& instanceName):
+    ConfigNode(appName, instanceName)
+{
 }
 
 } //namespace jet

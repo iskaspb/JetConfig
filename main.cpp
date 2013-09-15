@@ -16,7 +16,7 @@ using std::endl;
 
 TEST(ConfigSource, SimpleConfigSource)
 {
-    const jet::ConfigSource source("<app> <attr> value</attr></app>");
+    const jet::ConfigSource source("<app> <attr> value</attr></app> ");
     EXPECT_EQ(
         "<config><app><attr>value</attr></app></config>",
         source.toString(jet::ConfigSource::OneLine));
@@ -25,7 +25,7 @@ TEST(ConfigSource, SimpleConfigSource)
 TEST(ConfigSource, EmptyConfigSource)
 {
     {
-        const jet::ConfigSource source("<config></config>");
+        const jet::ConfigSource source("<config></config> ");
         EXPECT_EQ(
             "<config/>\n",
             source.toString());
@@ -42,7 +42,7 @@ TEST(ConfigSource, InvalidConfigSource)
 
 TEST(ConfigSource, SimpleConfigSourcePrettyPrint)
 {
-    const jet::ConfigSource source("<app><attr>value  </attr></app>");
+    const jet::ConfigSource source(" <app><attr>value  </attr></app>");
     EXPECT_EQ(
         "<config>\n"
         "  <app>\n"
@@ -54,7 +54,7 @@ TEST(ConfigSource, SimpleConfigSourcePrettyPrint)
 
 TEST(ConfigSource, AttrConfigSource)
 {
-    const jet::ConfigSource source("<app attr='value'/>");
+    const jet::ConfigSource source("<app attr='value'/> ");
     EXPECT_EQ(
         "<config>\n"
         "  <app>\n"
@@ -359,12 +359,12 @@ TEST(Config, SharedAttrConfigWithoutRootConfigElement)
     jet::Config config("appName");
     config << shared << jet::lock;
     EXPECT_EQ(std::string("appName"), config.name());
-    EXPECT_EQ("value",   config.get("libName.strAttr"));
-    EXPECT_EQ("value",   config.get<std::string>("libName.strAttr"));
+    EXPECT_EQ("value",   config.get("libName.strAttr "));
+    EXPECT_EQ("value",   config.get<std::string>(" libName.strAttr"));
     EXPECT_EQ("12",      config.get("libName.intAttr"));
-    EXPECT_EQ(12,        config.get<int>("libName.intAttr"));
-    EXPECT_EQ("13.2",    config.get<std::string>("libName.doubleAttr"));
-    EXPECT_EQ(13.2,      config.get<double>("libName.doubleAttr"));
+    EXPECT_EQ(12,        config.get<int>("libName.intAttr "));
+    EXPECT_EQ("13.2",    config.get<std::string>(" libName.doubleAttr"));
+    EXPECT_EQ(13.2,      config.get<double>("  libName.doubleAttr"));
     EXPECT_EQ("value",   config.get("libName.subKey.attr"));
 }
 
@@ -413,7 +413,7 @@ TEST(Config, AnyCaseSystemConfigName)
 
 TEST(Config, InstanceConfigName)
 {
-    jet::Config config("appName", "i1");
+    jet::Config config("appName ", "i1 ");
     EXPECT_EQ("appName:i1", config.name());
     EXPECT_EQ("appName", config.appName());
     EXPECT_EQ("i1", config.instanceName());
@@ -427,7 +427,7 @@ TEST(Config, LockConfig)
     const jet::ConfigSource s2(
         "<appName:1 attr2='10'/>",
         "s2.xml");
-    jet::Config config("appName", "1");
+    jet::Config config("appName ", " 1");
     config << s1 << jet::lock;
     EXPECT_EQ("value", config.get("attr"));
     CONFIG_ERROR(
@@ -532,7 +532,7 @@ TEST(Config, Initialization)
     }
 }
 
-TEST(Config, getChild)
+TEST(Config, getNode)
 {
     const jet::ConfigSource s1(
         "<appName>\n"
@@ -548,64 +548,103 @@ TEST(Config, getChild)
         "s2");
     jet::Config config("appName", "1");
     config << s1 << s2 << jet::lock;
-    const jet::ConfigNode attribs(config.getChild("attribs"));
+    const jet::ConfigNode attribs(config.getNode("attribs"));
     EXPECT_EQ("appName:1.attribs", attribs.name());
     EXPECT_EQ(10,        attribs.get<int>("attr1"));
     EXPECT_EQ(20,        attribs.get<int>("attr2"));
     EXPECT_EQ("value3",  attribs.get("attr3"));
     EXPECT_EQ("data",    attribs.get("subkey.attr"));
     
-    const jet::ConfigNode subkey(attribs.getChild("subkey"));
+    const jet::ConfigNode subkey(attribs.getNode("subkey"));
     EXPECT_EQ("appName:1.attribs.subkey", subkey.name());
     EXPECT_EQ("data", subkey.get("attr"));
     
-    CONFIG_ERROR(attribs.getChild("UNKNOWN"), "Config 'appName:1.attribs' doesn't have child 'UNKNOWN'");
+    CONFIG_ERROR(attribs.getNode("UNKNOWN"), "Config 'appName:1.attribs' doesn't have child 'UNKNOWN'");
     
 }
 
-TEST(Config, getChildren)
+TEST(Config, getChildrenOf)
 {
     const jet::ConfigSource s1(
 "<deployment>\n\
-    <region name='UK'>\n\
-        <boxes>\n\
-            <box hostname='UK1'/>\n\
-            <box hostname='UK2'/>\n\
-            <box hostname='UK3'/>\n\
-        </boxes>\n\
-    </region>\n\
-    <region name='US'>\n\
-        <boxes>\n\
-            <box hostname='US1'/>\n\
-            <box hostname='US2'/>\n\
-        </boxes>\n\
-    </region>\n\
+    <regions>\n\
+        <UK>\n\
+            <boxes>\n\
+                <box hostname='UK1'/>\n\
+                <box hostname='UK2'/>\n\
+                <box hostname='UK3'/>\n\
+            </boxes>\n\
+        </UK>\n\
+        <US>\n\
+            <boxes>\n\
+                <box hostname='US1'/>\n\
+                <box hostname='US2'/>\n\
+            </boxes>\n\
+        </US>\n\
+    </regions>\n\
 </deployment>\n",
         "s1");
     jet::Config deployment("deployment");
-    deployment << s1;
-    deployment << jet::lock;
-    const std::vector<jet::ConfigNode> regions(deployment.getChildren("region"));
+    deployment << s1 << jet::lock;
+    const std::vector<jet::ConfigNode> regions(deployment.getChildrenOf("regions"));
     EXPECT_EQ(2, regions.size());
     BOOST_FOREACH(const jet::ConfigNode& region, regions)
     {
-        const std::string& regionName = region.get<std::string>("name");
-        const std::vector<jet::ConfigNode> boxes(region.getChildren("boxes.box"));
+        const std::string& regionName = region.nodeName();
+        const std::vector<jet::ConfigNode> boxes(region.getChildrenOf("boxes"));
         if("US" == regionName)
             EXPECT_EQ(2, boxes.size());
         else
             EXPECT_EQ(3, boxes.size());
         unsigned index = 1;
-        BOOST_FOREACH(const jet::ConfigNode& box, region.getChildren("boxes.box"))
+        BOOST_FOREACH(const jet::ConfigNode& box, boxes)
         {
             const std::string expectedHostname(regionName + boost::lexical_cast<std::string>(index));
             EXPECT_EQ(expectedHostname, box.get<std::string>("hostname"));
+            const std::string expectedBoxName("deployment.regions." + regionName + ".boxes.box");
+            EXPECT_EQ(expectedBoxName, box.name());
             ++index;
         }
     }
 }
 
-//TODO: test merge of repeating elements
+TEST(Config, getChildrenOfRoot)
+{
+    const jet::ConfigSource s1(
+"<deployment>\n\
+    <UK attr='1'/>\n\
+    <US attr='2'/>\n\
+    <HK attr='23'/>\n\
+</deployment>\n",
+        "s1");
+    jet::Config deployment("deployment");
+    deployment << s1 << jet::lock;
+    
+    jet::ConfigNodes nodes(deployment.getChildrenOf());
+    ASSERT_EQ(3, nodes.size());
+    EXPECT_EQ("UK", nodes[0].nodeName());
+    EXPECT_EQ("US", nodes[1].nodeName());
+    EXPECT_EQ("HK", nodes[2].nodeName());
+}
+
+TEST(Config, getValue)
+{
+    const jet::ConfigSource s1(
+"<deployment>\n\
+    <UK attr='1'/>\n\
+    <US attr='2'/>\n\
+    <HK attr='23'/>\n\
+</deployment>\n",
+        "s1");
+    jet::Config deployment("deployment");
+    deployment << s1 << jet::lock;
+    
+    EXPECT_EQ("1", deployment.getNode("UK.attr").getValue());
+
+    CONFIG_ERROR(deployment.getNode("UK").getValue(), "Node 'deployment.UK' is intermidiate node without value");
+}
+
+//TODO: prohibit merge of repeating elements
 //TODO: test xml comments
 //TODO: (SourceConfig) prohibit '.' separator everywhere except application name
 //TODO: add command line config source
