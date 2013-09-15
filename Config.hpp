@@ -38,20 +38,16 @@ public:
     ConfigNode getNode(const std::string& path) const;
     boost::optional<ConfigNode> getNodeOptional(const std::string& path) const;
     std::vector<ConfigNode> getChildrenOf(const std::string& path = std::string()) const;
-
-    std::string getValue() const;
-    template<typename T> T getValue() const;
     
-    
-    std::string get(const std::string& attrName) const{ return getImpl(attrName); }
+    std::string get(const std::string& attrName = std::string()) const;
     template<typename T>
-    T get(const std::string& attrName) const;
+    T get(const std::string& attrName = std::string()) const;
     
-    boost::optional<std::string> getOptional(const std::string& attrName) const{ return getOptionalImpl(attrName); }
+    boost::optional<std::string> getOptional(const std::string& attrName = std::string()) const;
     template<typename T>
-    boost::optional<T> getOptional(const std::string& attrName) const;
+    boost::optional<T> getOptional(const std::string& attrName = std::string()) const;
     
-    std::string get(const std::string& attrName, const std::string& defaultValue) const{ return getImpl(attrName, defaultValue); }
+    std::string get(const std::string& attrName, const std::string& defaultValue) const;
     template<typename T>
     T get(const std::string& attrName, const T& defaultValue) const;
 protected:
@@ -60,9 +56,6 @@ protected:
     void lock();
     void print(std::ostream& os) const;
 private:
-    std::string getImpl(const std::string& attrName) const;
-    boost::optional<std::string> getOptionalImpl(const std::string& attrName) const;
-    std::string getImpl(const std::string& attrName, const std::string& defaultValue) const;
     void throwValueConversionError(const std::string& attrName, const std::string& value) const;
     friend std::ostream& operator<<(std::ostream& os, const ConfigNode& config);
     //...
@@ -89,24 +82,10 @@ public:
     void operator<<(ConfigLock);
 };
 
-template<typename T> T ConfigNode::getValue() const
-{
-    const std::string value(getValue());
-    try
-    {
-        return boost::lexical_cast<T>(value);
-    }
-    catch(const boost::bad_lexical_cast&)
-    {
-        throwValueConversionError(name(), value);
-        throw;
-    }
-}
-
 template<typename T>
 inline T ConfigNode::get(const std::string& attrName) const
 {
-    const std::string value(getImpl(attrName));
+    const std::string value(get(attrName));
     try
     {
         return boost::lexical_cast<T>(value);
@@ -121,7 +100,7 @@ inline T ConfigNode::get(const std::string& attrName) const
 template<typename T>
 inline boost::optional<T> ConfigNode::getOptional(const std::string& attrName) const
 {
-    const boost::optional<std::string> value(getOptionalImpl(attrName));
+    const boost::optional<std::string> value(getOptional(attrName));
     if(!value)
         return boost::none;
     try
@@ -138,7 +117,7 @@ inline boost::optional<T> ConfigNode::getOptional(const std::string& attrName) c
 template<typename T>
 inline T ConfigNode::get(const std::string& attrName, const T& defaultValue) const
 {
-    boost::optional<std::string> value(getOptionalImpl(attrName));
+    boost::optional<std::string> value(getOptional(attrName));
     if(!value)
         return defaultValue;
     try

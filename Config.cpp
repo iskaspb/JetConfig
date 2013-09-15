@@ -35,6 +35,7 @@ namespace jet
 
 namespace
 {
+
 inline std::string composeName(
     const std::string& appName,
     const std::string& instanceName = std::string(),
@@ -53,6 +54,16 @@ inline std::string composeName(
     }
     return res;
 }
+
+inline std::string addPath(const std::string& lhs, const std::string& rhs)
+{
+    std::string res(lhs);
+    if(!res.empty() && !rhs.empty())
+        res += '.';
+    res += rhs;
+    return res;
+}
+
 }//anonymous namespace
 
 const ConfigLock lock = {};
@@ -285,30 +296,39 @@ void ConfigNode::print(std::ostream& os) const
 }
 
 
-std::string ConfigNode::getImpl(const std::string& attrName) const
+std::string ConfigNode::get(const std::string& rawAttrName) const
 {
-    boost::optional<std::string> value(getOptionalImpl(attrName));
-    if(value)
-        return *value;
+    impl_->getConfigNode();//...just to check locked state
+    const std::string attrName(boost::trim_copy(rawAttrName));
+    const boost::optional<const Tree&> attrNode(
+        static_cast<const Tree*>(treeNode_)->get_child_optional(attrName));
+    if(!attrNode)
+        throw ConfigError(str(
+            boost::format("Can't find property '%1%' in config '%2%'") %
+            attrName %
+            name()));
+    if(attrNode->empty())
+        return attrNode->data();
     throw ConfigError(str(
-        boost::format("Can't find property '%1%' in config '%2%'") %
-        attrName %
-        name()));
+        boost::format("Node '%1%' is intermidiate node without value") %
+        addPath(name(), attrName)));
 }
 
-boost::optional<std::string> ConfigNode::getOptionalImpl(const std::string& attrName) const
+boost::optional<std::string> ConfigNode::getOptional(const std::string& attrName) const
 {
     impl_->getConfigNode();//...just to check locked state
     const boost::optional<const Tree&> attrNode(
         static_cast<const Tree*>(treeNode_)->get_child_optional(boost::trim_copy(attrName)));
-    if(attrNode)
-        return attrNode->get_value<std::string>();
+
+    if(attrNode && attrNode->empty())
+        return attrNode->data();
+
     return boost::none;
 }
 
-std::string ConfigNode::getImpl(const std::string& attrName, const std::string& defaultValue) const
+std::string ConfigNode::get(const std::string& attrName, const std::string& defaultValue) const
 {
-    boost::optional<std::string> value(getOptionalImpl(attrName));
+    boost::optional<std::string> value(getOptional(attrName));
     if(value)
         return *value;
     return defaultValue;
@@ -325,18 +345,6 @@ ConfigNode ConfigNode::getNode(const std::string& path) const
         path));
 }
 
-
-namespace {
-inline std::string concatenatePath(const std::string& lhs, const std::string& rhs)
-{
-    std::string res(lhs);
-    if(!res.empty())
-        res += '.';
-    res += rhs;
-    return res;
-}
-}//anonymous namespace
-
 boost::optional<ConfigNode> ConfigNode::getNodeOptional(const std::string& rawPath) const
 {
     impl_->getConfigNode();//...just to check locked state
@@ -346,7 +354,7 @@ boost::optional<ConfigNode> ConfigNode::getNodeOptional(const std::string& rawPa
     if(node)
     {
         return ConfigNode(
-            concatenatePath(path_, path),
+            addPath(path_, path),
             impl_,
             &(*node));
     }
@@ -377,19 +385,15 @@ std::vector<ConfigNode> ConfigNode::getChildrenOf(const std::string& rawParentPa
     
     const std::string parentPath(boost::trim_copy(rawParentPath));
 
-    const std::string fullParentPath(concatenatePath(path_, parentPath));
-    
-    const Tree& parentNode =
-        (parentPath.empty() ?
-            *static_cast<const Tree*>(treeNode_):
-            static_cast<const Tree*>(treeNode_)->get_child(parentPath));
-    
+    const std::string fullParentPath(addPath(path_, parentPath));
+
+    const Tree& parentNode = static_cast<const Tree*>(treeNode_)->get_child(parentPath);
     std::vector<ConfigNode> result;
     BOOST_FOREACH(
         const Tree::value_type& node,
         parentNode)
     {
-        const std::string newPath(concatenatePath(fullParentPath, node.first));
+        const std::string newPath(addPath(fullParentPath, node.first));
         result.push_back(
             ConfigNode(
                 newPath,
@@ -397,17 +401,6 @@ std::vector<ConfigNode> ConfigNode::getChildrenOf(const std::string& rawParentPa
                 &node.second));
     }
     return result;
-}
-
-std::string ConfigNode::getValue() const
-{
-    impl_->getConfigNode();//...just to check locked state
-    //const std::string& value = static_cast<const Tree*>(treeNode_)->data();
-    const Tree& node(*static_cast<const Tree*>(treeNode_));
-    if(node.empty())
-        return node.data();
-    throw ConfigError(str(
-        boost::format("Node '%1%' is intermidiate node without value") % name()));
 }
 
 std::ostream& operator<<(std::ostream& os, const ConfigNode& config)

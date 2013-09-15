@@ -446,6 +446,7 @@ TEST(Config, Getters)
     
     //...simple getter
     EXPECT_EQ("value", config.get("str"));
+    EXPECT_EQ("value", config.getNode("str").get());
     EXPECT_EQ(10, config.get<int>("int"));
     CONFIG_ERROR(
         config.get("unknown"),
@@ -456,6 +457,7 @@ TEST(Config, Getters)
     
     //...optional getter
     EXPECT_EQ("value", *config.getOptional("str"));
+    EXPECT_EQ("value", *config.getNodeOptional("str")->getOptional());
     EXPECT_EQ(10, *config.getOptional<int>("int"));
     EXPECT_EQ(boost::none, config.getOptional("unknown"));
     CONFIG_ERROR(
@@ -627,7 +629,7 @@ TEST(Config, getChildrenOfRoot)
     EXPECT_EQ("HK", nodes[2].nodeName());
 }
 
-TEST(Config, getValue)
+TEST(Config, getValueOfIntermidiateNode)
 {
     const jet::ConfigSource s1(
 "<deployment>\n\
@@ -639,9 +641,9 @@ TEST(Config, getValue)
     jet::Config deployment("deployment");
     deployment << s1 << jet::lock;
     
-    EXPECT_EQ("1", deployment.getNode("UK.attr").getValue());
-
-    CONFIG_ERROR(deployment.getNode("UK").getValue(), "Node 'deployment.UK' is intermidiate node without value");
+    EXPECT_EQ("1", deployment.getNode("UK.attr").get());
+    
+    CONFIG_ERROR(deployment.getNode("UK").get(), "Node 'deployment.UK' is intermidiate node without value");
 }
 
 //TODO: prohibit merge of repeating elements
