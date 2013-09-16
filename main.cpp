@@ -646,7 +646,92 @@ TEST(Config, getValueOfIntermidiateNode)
     CONFIG_ERROR(deployment.getNode("UK").get(), "Node 'deployment.UK' is intermidiate node without value");
 }
 
-//TODO: prohibit merge of repeating elements
+
+
+TEST(Config, repeatingNodeMergeWithoutConflicts)
+{
+    const jet::ConfigSource s1(
+"<app>\n\
+    <key attr='1'/>\n\
+    <key attr='2'/>\n\
+</app>\n",
+        "s1");
+    
+    const jet::ConfigSource s2(
+"<app>\n\
+    <key1 attr='1'/>\n\
+    <key1 attr='2'/>\n\
+</app>\n",
+        "s2");
+    
+    jet::Config config("app");
+    
+    config << s1 << s2 << jet::lock;
+    
+    std::stringstream strm;
+    strm << config;
+
+    const char* mergedConfig =
+"<app>\n\
+<key>\n\
+  <attr>1</attr>\n\
+</key>\n\
+<key>\n\
+  <attr>2</attr>\n\
+</key>\n\
+<key1>\n\
+  <attr>1</attr>\n\
+</key1>\n\
+<key1>\n\
+  <attr>2</attr>\n\
+</key1>\n\
+</app>\n";
+
+    EXPECT_EQ(mergedConfig, strm.str());
+}
+
+TEST(Config, repeatingNodeMergeWithConflicts1)
+{
+    const jet::ConfigSource s1(
+"<app>\n\
+    <key attr='1'/>\n\
+</app>\n",
+        "s1");
+    
+    const jet::ConfigSource s2(
+"<app>\n\
+    <key attr='1'/>\n\
+    <key attr='2'/>\n\
+</app>\n",
+        "s2");
+    
+    jet::Config config("app");
+    
+    config << s1;
+    CONFIG_ERROR(config << s2, "Can't do ambiguous merge of node 'app.key' from config source 's2' to config 'app'");
+}
+
+TEST(Config, repeatingNodeMergeWithConflicts2)
+{
+    const jet::ConfigSource s1(
+"<app>\n\
+    <key attr='1'/>\n\
+    <key attr='2'/>\n\
+</app>\n",
+        "s1");
+    
+    const jet::ConfigSource s2(
+"<app>\n\
+    <key attr='1'/>\n\
+</app>\n",
+        "s2");
+    
+    jet::Config config("app");
+    
+    config << s1;
+    CONFIG_ERROR(config << s2, "Can't do ambiguous merge of node 'app.key' from config source 's2' to config 'app'");
+}
+
 //TODO: test xml comments
 //TODO: (SourceConfig) prohibit '.' separator everywhere except application name
 //TODO: add command line config source
