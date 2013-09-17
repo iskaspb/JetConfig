@@ -708,7 +708,7 @@ TEST(Config, repeatingNodeMergeWithConflicts1)
     jet::Config config("app");
     
     config << s1;
-    CONFIG_ERROR(config << s2, "Can't do ambiguous merge of node 'app.key' from config source 's2' to config 'app'");
+    CONFIG_ERROR(config << s2, "Can't do ambiguous merge of node 'key' from config source 's2' to config 'app'");
 }
 
 TEST(Config, repeatingNodeMergeWithConflicts2)
@@ -729,7 +729,7 @@ TEST(Config, repeatingNodeMergeWithConflicts2)
     jet::Config config("app");
     
     config << s1;
-    CONFIG_ERROR(config << s2, "Can't do ambiguous merge of node 'app.key' from config source 's2' to config 'app'");
+    CONFIG_ERROR(config << s2, "Can't do ambiguous merge of node 'key' from config source 's2' to config 'app'");
 }
 
 //TODO: test xml comments

@@ -97,15 +97,12 @@ public:
         {//...merge shared attributes (if found)
             const CAssocIter sharedIter = otherConfig.find(SHARED_NODE_NAME);
             if(otherConfig.not_found() != sharedIter)
-                merge(getSharedNode(), sharedIter->second);
+                MergeProcessor(name(), source.name()).merge(getSharedNode(), sharedIter->second);
         }
         const CAssocIter appIter = otherConfig.find(appName());
         if(appIter == otherConfig.not_found())
             return;
-        {
-            merge(getSelfNode(), appIter->second);
-            removeRedundantInstanceFromSelf();
-        }
+        MergeProcessor(name(), source.name()).merge(getSelfNode(), appIter->second);
         if(!instanceName().empty())
         {//...merge instance
             const CAssocIter instanceRootIter = appIter->second.find(INSTANCE_NODE_NAME);
@@ -114,7 +111,8 @@ public:
                 const CAssocIter instanceIter = instanceRootIter->second.find(instanceName());
                 if(instanceRootIter->second.not_found() != instanceIter)
                 {
-                    merge(getInstanceNode(), instanceIter->second);
+                    MergeProcessor(name(), source.name()).merge(
+                        getInstanceNode(), instanceIter->second);
                 }
             }
         }
@@ -124,9 +122,11 @@ public:
         if(isLocked_)
             return;
         //...merge self node and (optionally) instance node into shared node
-        merge(getSharedNode(), getSelfNode());
+        MergeProcessor(ROOT_NODE_NAME "." SHARED_NODE_NAME, appName()).merge(
+            getSharedNode(), getSelfNode());
         if(!instanceName().empty())
-            merge(getSharedNode(), getInstanceNode());
+            MergeProcessor(ROOT_NODE_NAME "." SHARED_NODE_NAME, name()).merge(
+                getSharedNode(), getInstanceNode());
         //...swap self node and shared node to move result into self node
         getSharedNode().swap(getSelfNode());
         //...erase shared and (optionally) instance node
@@ -147,38 +147,59 @@ public:
     }
     std::string name() const { return composeName(appName(), instanceName()); }
 private:
-    static void merge(Tree& to, const Tree& from)
+    class MergeProcessor
     {
-        if(to.empty())
+    public:
+        MergeProcessor(const std::string& configName, const std::string& sourceName):
+            configName_(configName),
+            sourceName_(sourceName)
+        {}
+        void merge(Tree& to, const Tree& from) const
         {
-            to = from;
-            return;
+            Tree newChildren;
+            BOOST_FOREACH(const ValueType& node, from)
+            {
+                const std::string& mergeName(node.first);
+                if(INSTANCE_NODE_NAME == mergeName)
+                    continue;
+                {//...check for ambiguous merge
+                    const size_t fromCount = from.count(mergeName);
+                    const size_t toCount = to.count(mergeName);
+                    if( (fromCount > 0 && toCount > 1) ||
+                        (toCount > 0 && fromCount > 1) )
+                        throw ConfigError(str(
+                            boost::format("Can't do ambiguous merge of node '%1%' from config source '%2%' to config '%3%'") %
+                            mergeName %
+                            sourceName_ %
+                            configName_));
+                }
+                const Tree& mergeTree(node.second);
+                const AssocIter iter(to.find(mergeName));
+                if(iter == to.not_found())
+                {
+                    newChildren.push_back(node);
+                }
+                else if(mergeTree.empty())
+                {
+                    iter->second = mergeTree;
+                }
+                else
+                {
+                    merge(iter->second, mergeTree);
+                }
+            }
+            BOOST_FOREACH(ValueType& node, newChildren)
+            {
+                const std::string& name(node.first);
+                to.push_back(Tree::value_type(name, Tree()));
+                node.second.swap(to.back().second);
+            }
+
         }
-        BOOST_FOREACH(const ValueType& node, from)
-        {
-            const std::string& mergeName(node.first);
-            if(INSTANCE_NODE_NAME == mergeName)
-                continue;
-            const Tree& mergeTree(node.second);
-            const AssocIter iter(to.find(mergeName));
-            if(iter == to.not_found())
-            {
-                to.push_back(node);
-            }
-            else if(mergeTree.empty())
-            {
-                iter->second = mergeTree;
-            }
-            else
-            {
-                merge(iter->second, mergeTree);
-            }
-        }
-    }
-    void removeRedundantInstanceFromSelf()
-    {
-        getSelfNode().erase(INSTANCE_NODE_NAME);
-    }
+    private:
+        const std::string configName_;
+        const std::string& sourceName_;
+    };
     Tree& getInstanceNode()
     {
         assert(!isLocked_);
